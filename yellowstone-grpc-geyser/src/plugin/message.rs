@@ -638,6 +638,32 @@ impl MessageBlockMeta {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct MessageTransactionAccounts {
+    pub signature: Signature,
+    pub slot: Slot,
+    pub index: u64,
+    pub accounts: Vec<Arc<MessageAccountInfo>>,
+    pub created_at: Timestamp,
+}
+
+impl MessageTransactionAccounts {
+    pub fn new(
+        signature: Signature,
+        slot: Slot,
+        index: u64,
+        accounts: Vec<Arc<MessageAccountInfo>>,
+    ) -> Self {
+        Self {
+            signature,
+            slot,
+            index,
+            accounts,
+            created_at: Timestamp::from(SystemTime::now()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageBlock {
     pub meta: Arc<MessageBlockMeta>,
     pub transactions: Vec<Arc<MessageTransaction>>,
@@ -719,6 +745,7 @@ pub enum Message {
     Entry(Arc<MessageEntry>),
     BlockMeta(Arc<MessageBlockMeta>),
     Block(Arc<MessageBlock>),
+    TransactionAccounts(Arc<MessageTransactionAccounts>),
 }
 
 impl Message {
@@ -732,6 +759,7 @@ impl Message {
             Self::Entry(msg) => msg.slot,
             Self::BlockMeta(msg) => msg.slot,
             Self::Block(msg) => msg.meta.slot,
+            Self::TransactionAccounts(msg) => msg.slot,
         }
     }
 
@@ -762,6 +790,9 @@ impl Message {
             )),
             UpdateOneof::Entry(msg) => {
                 Self::Entry(Arc::new(MessageEntry::from_update_oneof(&msg, created_at)?))
+            }
+            UpdateOneof::TransactionAccounts(_) => {
+                return Err("TransactionAccounts message is not supported for replay")
             }
         })
     }

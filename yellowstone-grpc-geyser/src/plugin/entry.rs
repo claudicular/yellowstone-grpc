@@ -7,8 +7,9 @@ use {
         plugin::{
             filter::limits::FilterLimits,
             message::{
-                CommitmentLevel, Message, MessageAccount, MessageBlockMeta,
-                MessageDeshredTransaction, MessageEntry, MessageSlot, MessageTransaction,
+                CommitmentLevel, Message, MessageAccount, MessageAccountInfo,
+                MessageBlockMeta, MessageDeshredTransaction, MessageEntry, MessageSlot,
+                MessageTransaction, MessageTransactionAccounts,
             },
         },
         stream::tokio::BatchStreamUnboundedReceiver,
@@ -17,6 +18,7 @@ use {
     agave_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
         ReplicaDeshredTransactionInfoVersions, ReplicaEntryInfoVersions,
+        ReplicaTransactionAccountsInfoVersions,
         ReplicaTransactionInfoVersions, Result as PluginResult, SlotStatus,
     },
     solana_pubkey::Pubkey,
@@ -452,6 +454,47 @@ impl GeyserPlugin for Plugin {
 
     fn deshred_transaction_alt_resolution_enabled(&self) -> bool {
         true
+    }
+
+    fn transaction_accounts_notifications_enabled(&self) -> bool {
+        true
+    }
+
+    fn transaction_accounts_include_readonly_owners(&self) -> Vec<Pubkey> {
+        vec![
+            // Token Program
+            solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+            // Token 2022 Program
+            solana_pubkey::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+        ]
+    }
+
+    fn notify_transaction_accounts(
+        &self,
+        transaction_accounts: ReplicaTransactionAccountsInfoVersions,
+    ) -> PluginResult<()> {
+        self.with_inner(|inner| {
+            let info = match transaction_accounts {
+                ReplicaTransactionAccountsInfoVersions::V0_0_1(info) => info,
+            };
+
+            // Convert accounts to MessageAccountInfo
+            let accounts: Vec<Arc<MessageAccountInfo>> = info
+                .accounts
+                .iter()
+                .map(|account| Arc::new(MessageAccountInfo::from_geyser(account)))
+                .collect();
+
+            let message = Message::TransactionAccounts(Arc::new(MessageTransactionAccounts::new(
+                *info.signature,
+                info.slot,
+                info.index as u64,
+                accounts,
+            )));
+            inner.send_message(message);
+
+            Ok(())
+        })
     }
 }
 
