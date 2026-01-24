@@ -977,7 +977,9 @@ impl GrpcService {
         broadcast_tx: broadcast::Sender<BroadcastedMessage>,
         block_reconstruction_tx: mpsc::UnboundedSender<Message>,
     ) {
-        const PROCESSED_MESSAGES_MAX: usize = 31;
+        // Latency tuning: cap the per-iteration batch at 4 (upstream default 31).
+        // Proven effective for latency; carried across release-tag rebases.
+        const PROCESSED_MESSAGES_MAX: usize = 4;
         const STATE_MESSAGES_MAX: usize = 4; /* In a reasonable loop, we don't expect to receive more than FirstShredReceived, Completed, CreatedBank, or Finalized messages per iteration */
 
         let mut processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
