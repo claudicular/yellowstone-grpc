@@ -738,8 +738,8 @@ impl GrpcService {
         replay_stored_slots: u64,
         parallel_encoder: ParallelEncoder,
     ) {
-        const PROCESSED_MESSAGES_MAX: usize = 31;
-        const PROCESSED_MESSAGES_SLEEP: Duration = Duration::from_millis(10);
+        const PROCESSED_MESSAGES_MAX: usize = 4;
+        const PROCESSED_MESSAGES_SLEEP: Duration = Duration::from_micros(100);
         let mut msgid_gen = MessageId::default();
         let mut messages: BTreeMap<u64, SlotMessages> = Default::default();
         let mut processed_messages = Vec::with_capacity(PROCESSED_MESSAGES_MAX);
