@@ -1266,8 +1266,12 @@ impl GrpcService {
     ) where
         St: BatchStream<Item = Message> + Unpin + Send + 'static,
     {
-        const MESSAGE_BATCH_SIZE: usize = 1024;
-        // let mut message_batch = Vec::with_capacity(MESSAGE_BATCH_SIZE);
+        // Latency tuning: cap the per-iteration batch at 4 (upstream default 1024).
+        // Proven effective for latency; carried across release-tag rebases.
+        // (This is the successor of the pre-v15 `PROCESSED_MESSAGES_MAX` knob: the
+        // batch stream blocks on `poll_recv` then greedily `try_recv`-drains up to
+        // this cap, so a small cap flushes to subscribers sooner under backlog.)
+        const MESSAGE_BATCH_SIZE: usize = 4;
         struct PartitionedBuffer {
             message_batch: Vec<Message>,
             blockmeta_batch: Option<Message>,
