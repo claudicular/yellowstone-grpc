@@ -39,7 +39,8 @@ use {
         subscribe_update::UpdateOneof, SlotStatus as SlotStatusProto, SubscribeUpdate,
         SubscribeUpdateAccount, SubscribeUpdateAccountInfo, SubscribeUpdateBlock,
         SubscribeUpdateEntry, SubscribeUpdatePing, SubscribeUpdatePong, SubscribeUpdateSlot,
-        SubscribeUpdateTransaction, SubscribeUpdateTransactionInfo,
+        SubscribeUpdateTransaction, SubscribeUpdateTransactionAccounts,
+        SubscribeUpdateTransactionInfo,
         SubscribeUpdateTransactionStatus,
     },
 };
@@ -255,6 +256,23 @@ impl FilteredUpdate {
             FilteredUpdateOneof::BlockFooter(msg) => {
                 UpdateOneof::BlockFooter(msg.block_footer.clone())
             }
+            FilteredUpdateOneof::TransactionAccounts(msg) => {
+                UpdateOneof::TransactionAccounts(SubscribeUpdateTransactionAccounts {
+                    signature: msg.signature.as_ref().into(),
+                    slot: msg.slot,
+                    index: msg.index,
+                    accounts: msg
+                        .accounts
+                        .iter()
+                        .map(|acc| {
+                            Self::as_subscribe_update_account(
+                                acc.as_ref(),
+                                &msg.accounts_data_slice,
+                            )
+                        })
+                        .collect(),
+                })
+            }
         };
 
         SubscribeUpdate {
@@ -284,6 +302,7 @@ pub enum FilteredUpdateOneof {
     Entry(FilteredUpdateEntry),                         // 8
     EntryUpdateParent(Arc<MessageEntryUpdateParent>),   // 13
     BlockFooter(Arc<MessageBlockFooter>),               // 12
+    TransactionAccounts(FilteredUpdateTransactionAccounts), // 100
 }
 
 impl FilteredUpdateOneof {
@@ -338,6 +357,10 @@ impl FilteredUpdateOneof {
     pub const fn block_footer(message: Arc<MessageBlockFooter>) -> Self {
         Self::BlockFooter(message)
     }
+
+    pub const fn transaction_accounts(message: FilteredUpdateTransactionAccounts) -> Self {
+        Self::TransactionAccounts(message)
+    }
 }
 
 impl prost::Message for FilteredUpdateOneof {
@@ -357,6 +380,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::BlockMeta(msg) => message::encode(7u32, &msg.block_meta, buf),
             Self::Entry(msg) => message::encode(8u32, msg, buf),
             Self::BlockFooter(msg) => message::encode(12u32, &msg.block_footer, buf),
+            Self::TransactionAccounts(msg) => message::encode(100u32, msg, buf),
         }
     }
 
@@ -373,6 +397,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::BlockMeta(msg) => message::encoded_len(7u32, &msg.block_meta),
             Self::Entry(msg) => message::encoded_len(8u32, msg),
             Self::BlockFooter(msg) => message::encoded_len(12u32, &msg.block_footer),
+            Self::TransactionAccounts(msg) => message::encoded_len(100u32, msg),
         }
     }
 
@@ -1279,7 +1304,70 @@ impl FilteredUpdateEntry {
     }
 }
 
-#[cfg(any(test, feature = "bench"))]
+#[derive(Debug, Clone, PartialEq)]
+pub struct FilteredUpdateTransactionAccounts {
+    pub signature: Signature,
+    pub slot: u64,
+    pub index: u64,
+    pub accounts: Vec<Arc<MessageAccountInfo>>,
+    pub accounts_data_slice: FilterAccountsDataSlice,
+}
+
+impl prost::Message for FilteredUpdateTransactionAccounts {
+    fn encode_raw(&self, buf: &mut impl BufMut) {
+        prost_bytes_encode_raw(1u32, self.signature.as_ref(), buf);
+        if self.slot != 0u64 {
+            ::prost::encoding::uint64::encode(2u32, &self.slot, buf);
+        }
+        if self.index != 0u64 {
+            ::prost::encoding::uint64::encode(3u32, &self.index, buf);
+        }
+        for account in &self.accounts {
+            FilteredUpdateAccount::account_encode_raw(
+                4u32,
+                account.as_ref(),
+                &self.accounts_data_slice,
+                buf,
+            );
+        }
+    }
+
+    fn encoded_len(&self) -> usize {
+        prost_bytes_encoded_len(1u32, self.signature.as_ref())
+            + if self.slot != 0u64 {
+                ::prost::encoding::uint64::encoded_len(2u32, &self.slot)
+            } else {
+                0
+            }
+            + if self.index != 0u64 {
+                ::prost::encoding::uint64::encoded_len(3u32, &self.index)
+            } else {
+                0
+            }
+            + prost_repeated_encoded_len_map!(4u32, self.accounts, |account| {
+                FilteredUpdateAccount::account_encoded_len(
+                    account.as_ref(),
+                    &self.accounts_data_slice,
+                )
+            })
+    }
+
+    fn merge_field(
+        &mut self,
+        _tag: u32,
+        _wire_type: WireType,
+        _buf: &mut impl Buf,
+        _ctx: DecodeContext,
+    ) -> Result<(), DecodeError> {
+        unimplemented!()
+    }
+
+    fn clear(&mut self) {
+        unimplemented!()
+    }
+}
+
+#[cfg(any(test, feature = "plugin-bench"))]
 pub mod tests {
     #[cfg(test)]
     use super::{FilteredUpdate, FilteredUpdateOneof};

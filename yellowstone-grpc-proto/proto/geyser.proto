@@ -49,6 +49,9 @@ message SubscribeRequest {
   optional SubscribeRequestPing ping = 9;
   optional uint64 from_slot = 11;
   map<string, SubscribeRequestFilterBlockFooter> block_footer = 12;
+  // Fork-only (claudicular). Numbered far above upstream's range so future
+  // upstream fields never collide with it (field 12 was taken by block_footer in v16).
+  map<string, SubscribeRequestFilterTransactionAccounts> transaction_accounts = 100;
 }
 
 // Hash algorithm used to build the filter. Carried on the wire so future
@@ -131,6 +134,21 @@ enum TokenAccountExpansionControlFlag {
   BALANCE_CHANGED = 1;
 }
 
+message SubscribeRequestFilterTransactionAccounts {
+  // Filter by account OWNER - matches accounts owned by these programs
+  // Example: Token program ID to get all token/mint accounts
+  repeated string owner = 1;
+  // Filter by account PUBKEY - matches specific account addresses
+  // Example: Raydium AMM program ID to match that specific account
+  repeated string account = 2;
+  // If true, include ALL accounts from matching transactions
+  // If false, only include accounts matching owner/account filters
+  optional bool include_all_accounts = 3;
+  // If true, only include Token/Token2022 mint accounts (not token accounts)
+  // This filters read-only accounts to only mints based on account data size/structure
+  optional bool readonly_mints_only = 4;
+}
+
 message SubscribeRequestFilterBlocks {
   repeated string account_include = 1;
   optional bool include_transactions = 2;
@@ -200,6 +218,8 @@ message SubscribeUpdate {
     SubscribeUpdateEntry entry = 8;
     SubscribeUpdateBlockFooter block_footer = 12;
     SubscribeUpdateEntryUpdateParent entry_update_parent = 13;
+    // Fork-only (claudicular); see SubscribeRequest.transaction_accounts.
+    SubscribeUpdateTransactionAccounts transaction_accounts = 100;
   }
   google.protobuf.Timestamp created_at = 11;
 }
@@ -329,6 +349,13 @@ message SubscribeUpdateDeshredUpdateParent {
   uint32 update_parent_fec_set_index = 2;
   uint64 parent_slot = 3;
   bytes parent_block_id = 4;
+}
+
+message SubscribeUpdateTransactionAccounts {
+  bytes signature = 1;
+  uint64 slot = 2;
+  uint64 index = 3;  // Transaction index in block
+  repeated SubscribeUpdateAccountInfo accounts = 4;
 }
 
 message SubscribeUpdateDeshredTransaction {
