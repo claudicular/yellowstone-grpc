@@ -4,17 +4,18 @@ use {
             limits::{
                 FilterLimits, FilterLimitsAccounts, FilterLimitsBlocks, FilterLimitsBlocksMeta,
                 FilterLimitsCheckError, FilterLimitsEntries, FilterLimitsSlots,
-                FilterLimitsTransactions,
+                FilterLimitsTransactionAccounts, FilterLimitsTransactions,
             },
             message::{
-                FilteredUpdate, FilteredUpdateBlock, FilteredUpdateFilters, FilteredUpdateOneof,
-                FilteredUpdates,
+                FilteredUpdate, FilteredUpdateBlock, FilteredUpdateFilters,
+                FilteredUpdateOneof, FilteredUpdateTransactionAccounts, FilteredUpdates,
             },
             name::{FilterName, FilterNameError, FilterNames},
         },
         message::{
-            CommitmentLevel, Message, MessageAccount, MessageBlock, MessageBlockMeta, MessageEntry,
-            MessageSlot, MessageTransaction, SlotStatus,
+            CommitmentLevel, Message, MessageAccount, MessageAccountInfo, MessageBlock,
+            MessageBlockMeta, MessageEntry, MessageSlot, MessageTransaction,
+            MessageTransactionAccounts, SlotStatus,
         },
     },
     base64::{engine::general_purpose::STANDARD as base64_engine, Engine},
@@ -40,7 +41,7 @@ use {
         SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterLamports,
         SubscribeRequestFilterBlocks, SubscribeRequestFilterBlocksMeta,
         SubscribeRequestFilterEntry, SubscribeRequestFilterSlots,
-        SubscribeRequestFilterTransactions,
+        SubscribeRequestFilterTransactionAccounts, SubscribeRequestFilterTransactions,
     },
 };
 
@@ -102,6 +103,7 @@ pub struct Filter {
     slots: FilterSlots,
     transactions: FilterTransactions,
     transactions_status: FilterTransactions,
+    transaction_accounts: FilterTransactionAccounts,
     entries: FilterEntries,
     blocks: FilterBlocks,
     blocks_meta: FilterBlocksMeta,
@@ -123,6 +125,7 @@ impl Default for Filter {
                 filter_type: FilterTransactionsType::TransactionStatus,
                 filters: HashMap::new(),
             },
+            transaction_accounts: FilterTransactionAccounts::default(),
             entries: FilterEntries::default(),
             blocks: FilterBlocks::default(),
             blocks_meta: FilterBlocksMeta::default(),
@@ -152,6 +155,11 @@ impl Filter {
                 &config.transactions_status,
                 &limits.transactions_status,
                 FilterTransactionsType::TransactionStatus,
+                names,
+            )?,
+            transaction_accounts: FilterTransactionAccounts::new(
+                &config.transaction_accounts,
+                &limits.transaction_accounts,
                 names,
             )?,
             entries: FilterEntries::new(&config.entry, &limits.entries, names)?,
@@ -201,7 +209,7 @@ impl Filter {
         Self::decode_pubkeys(pubkeys, limit).collect::<FilterResult<_>>()
     }
 
-    pub fn get_metrics(&self) -> [(&'static str, usize); 8] {
+    pub fn get_metrics(&self) -> [(&'static str, usize); 9] {
         [
             ("accounts", self.accounts.filters.len()),
             ("slots", self.slots.filters.len()),
@@ -209,6 +217,10 @@ impl Filter {
             (
                 "transactions_status",
                 self.transactions_status.filters.len(),
+            ),
+            (
+                "transaction_accounts",
+                self.transaction_accounts.filters.len(),
             ),
             ("entries", self.entries.filters.len()),
             ("blocks", self.blocks.filters.len()),
@@ -219,6 +231,7 @@ impl Filter {
                     + self.slots.filters.len()
                     + self.transactions.filters.len()
                     + self.transactions_status.filters.len()
+                    + self.transaction_accounts.filters.len()
                     + self.entries.filters.len()
                     + self.blocks.filters.len()
                     + self.blocks_meta.filters.len(),
@@ -248,6 +261,9 @@ impl Filter {
             Message::Entry(message) => self.entries.get_updates(message),
             Message::Block(message) => self.blocks.get_updates(message, &self.accounts_data_slice),
             Message::BlockMeta(message) => self.blocks_meta.get_updates(message),
+            Message::TransactionAccounts(message) => self
+                .transaction_accounts
+                .get_updates(message, &self.accounts_data_slice),
         }
     }
 
@@ -1008,6 +1024,225 @@ impl FilterBlocksMeta {
     }
 }
 
+// Token Program IDs for mint filtering
+const TOKEN_PROGRAM_ID: Pubkey =
+    solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const TOKEN_2022_PROGRAM_ID: Pubkey =
+    solana_pubkey::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+
+// Token account data sizes
+const TOKEN_MINT_SIZE: usize = 82; // Base mint size for both Token and Token2022
+const TOKEN_ACCOUNT_SIZE: usize = 165; // Base token account size for both Token and Token2022
+
+// Token2022 AccountType discriminator values (stored at offset 165 when extensions present)
+const ACCOUNT_TYPE_UNINITIALIZED: u8 = 0;
+const ACCOUNT_TYPE_MINT: u8 = 1;
+#[allow(dead_code)] // Included for documentation completeness
+const ACCOUNT_TYPE_ACCOUNT: u8 = 2;
+
+#[derive(Debug, Clone)]
+struct FilterTransactionAccountsInner {
+    /// Filter by account owner - matches accounts whose owner is in this set
+    owner: HashSet<Pubkey>,
+    /// Filter by account pubkey - matches accounts whose pubkey is in this set
+    account: HashSet<Pubkey>,
+    include_all_accounts: bool,
+    readonly_mints_only: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+struct FilterTransactionAccounts {
+    filters: HashMap<FilterName, FilterTransactionAccountsInner>,
+}
+
+impl FilterTransactionAccounts {
+    fn new(
+        configs: &HashMap<String, SubscribeRequestFilterTransactionAccounts>,
+        limits: &FilterLimitsTransactionAccounts,
+        names: &mut FilterNames,
+    ) -> FilterResult<Self> {
+        FilterLimits::check_max(configs.len(), limits.max)?;
+
+        let mut filters = HashMap::new();
+        for (name, filter) in configs {
+            // Check if at least one filter is specified (owner or account)
+            FilterLimits::check_any(
+                filter.owner.is_empty() && filter.account.is_empty(),
+                limits.any,
+            )?;
+            // Check limits for owner and account lists
+            FilterLimits::check_pubkey_max(filter.owner.len(), limits.owner_max)?;
+            FilterLimits::check_pubkey_max(filter.account.len(), limits.account_max)?;
+
+            filters.insert(
+                names.get(name)?,
+                FilterTransactionAccountsInner {
+                    owner: Filter::decode_pubkeys_into_set(&filter.owner, &limits.owner_reject)?,
+                    account: Filter::decode_pubkeys_into_set(
+                        &filter.account,
+                        &limits.account_reject,
+                    )?,
+                    include_all_accounts: filter.include_all_accounts.unwrap_or(false),
+                    readonly_mints_only: filter.readonly_mints_only.unwrap_or(false),
+                },
+            );
+        }
+        Ok(Self { filters })
+    }
+
+    /// Determines if a Token/Token2022 account is a mint (vs a token account).
+    ///
+    /// Detection logic:
+    /// - Standard Token Program:
+    ///   - Mint accounts are exactly 82 bytes
+    ///   - Token accounts are exactly 165 bytes
+    ///
+    /// - Token2022 Program:
+    ///   - Without extensions: same sizes as standard token
+    ///   - With extensions: AccountType discriminator at offset 165
+    ///     - AccountType::Mint = 1
+    ///     - AccountType::Account = 2
+    ///
+    /// Returns false for non-Token program accounts.
+    fn is_token_mint(account: &MessageAccountInfo) -> bool {
+        let data = &account.data;
+        let data_len = data.len();
+
+        if account.owner == TOKEN_PROGRAM_ID {
+            // Standard Token Program: mints are exactly 82 bytes
+            return data_len == TOKEN_MINT_SIZE;
+        }
+
+        if account.owner == TOKEN_2022_PROGRAM_ID {
+            // Token2022: Check size and AccountType discriminator
+
+            // Exactly 82 bytes = mint without extensions
+            if data_len == TOKEN_MINT_SIZE {
+                return true;
+            }
+
+            // Exactly 165 bytes = token account without extensions
+            if data_len == TOKEN_ACCOUNT_SIZE {
+                return false;
+            }
+
+            // Has extensions: check AccountType at offset 165
+            if data_len > TOKEN_ACCOUNT_SIZE {
+                let account_type = data[TOKEN_ACCOUNT_SIZE];
+                return account_type == ACCOUNT_TYPE_MINT;
+            }
+
+            // Between 82 and 165 bytes with extensions for mint
+            // Check AccountType at offset 82 (after base mint data)
+            if data_len > TOKEN_MINT_SIZE {
+                let account_type = data[TOKEN_MINT_SIZE];
+                return account_type == ACCOUNT_TYPE_MINT
+                    || account_type == ACCOUNT_TYPE_UNINITIALIZED;
+            }
+
+            return false;
+        }
+
+        // Not a Token program account
+        false
+    }
+
+    /// Check if an account is owned by Token or Token2022 program
+    #[inline]
+    fn is_token_program_account(account: &MessageAccountInfo) -> bool {
+        account.owner == TOKEN_PROGRAM_ID || account.owner == TOKEN_2022_PROGRAM_ID
+    }
+
+    /// Check if an account matches the filter criteria (either by owner or pubkey)
+    #[inline]
+    fn account_matches_filter(
+        acc: &MessageAccountInfo,
+        inner: &FilterTransactionAccountsInner,
+    ) -> bool {
+        // Match if account's owner is in the owner filter set
+        // OR if account's pubkey is in the account filter set
+        inner.owner.contains(&acc.owner) || inner.account.contains(&acc.pubkey)
+    }
+
+    fn get_updates(
+        &self,
+        message: &Arc<MessageTransactionAccounts>,
+        accounts_data_slice: &FilterAccountsDataSlice,
+    ) -> FilteredUpdates {
+        let mut updates = FilteredUpdates::new();
+
+        for (filter_name, inner) in self.filters.iter() {
+            // Check if any account in the message matches the filter
+            // (either by owner or by pubkey)
+            let has_empty_filters = inner.owner.is_empty() && inner.account.is_empty();
+            let has_matching_account = has_empty_filters
+                || message
+                    .accounts
+                    .iter()
+                    .any(|acc| Self::account_matches_filter(acc, inner));
+
+            if !has_matching_account {
+                continue;
+            }
+
+            // Determine which accounts to include in the update
+            let accounts: Vec<Arc<MessageAccountInfo>> =
+                if inner.include_all_accounts || has_empty_filters {
+                    // Include all accounts from the transaction
+                    if inner.readonly_mints_only {
+                        // Filter Token/Token2022 accounts to only mints
+                        // Non-token accounts pass through unchanged
+                        message
+                            .accounts
+                            .iter()
+                            .filter(|acc| {
+                                !Self::is_token_program_account(acc) || Self::is_token_mint(acc)
+                            })
+                            .cloned()
+                            .collect()
+                    } else {
+                        message.accounts.clone()
+                    }
+                } else {
+                    // Only include accounts that match the filter (by owner or pubkey)
+                    message
+                        .accounts
+                        .iter()
+                        .filter(|acc| {
+                            let matches_filter = Self::account_matches_filter(acc, inner);
+                            if !matches_filter {
+                                return false;
+                            }
+                            // Apply readonly_mints_only filter if enabled
+                            if inner.readonly_mints_only {
+                                !Self::is_token_program_account(acc) || Self::is_token_mint(acc)
+                            } else {
+                                true
+                            }
+                        })
+                        .cloned()
+                        .collect()
+                };
+
+            let mut filters = FilteredUpdateFilters::new();
+            filters.push(filter_name.clone());
+            updates.push(FilteredUpdate::new(
+                filters,
+                FilteredUpdateOneof::transaction_accounts(FilteredUpdateTransactionAccounts {
+                    signature: message.signature,
+                    slot: message.slot,
+                    index: message.index,
+                    accounts,
+                    accounts_data_slice: accounts_data_slice.clone(),
+                }),
+                message.created_at,
+            ));
+        }
+
+        updates
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct FilterAccountsDataSlice(Arc<[Range<usize>]>);
 
@@ -1206,6 +1441,7 @@ mod tests {
             slots: HashMap::new(),
             transactions: HashMap::new(),
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1238,6 +1474,7 @@ mod tests {
             slots: HashMap::new(),
             transactions: HashMap::new(),
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1274,6 +1511,7 @@ mod tests {
             slots: HashMap::new(),
             transactions,
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1309,6 +1547,7 @@ mod tests {
             slots: HashMap::new(),
             transactions,
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1350,6 +1589,7 @@ mod tests {
             slots: HashMap::new(),
             transactions: transactions.clone(),
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1415,6 +1655,7 @@ mod tests {
             slots: HashMap::new(),
             transactions: transactions.clone(),
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1480,6 +1721,7 @@ mod tests {
             slots: HashMap::new(),
             transactions,
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1531,6 +1773,7 @@ mod tests {
             slots: HashMap::new(),
             transactions: transactions.clone(),
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
@@ -1604,6 +1847,7 @@ mod tests {
             slots: HashMap::new(),
             transactions,
             transactions_status: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
