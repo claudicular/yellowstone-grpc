@@ -43,6 +43,7 @@ message SubscribeRequest {
   map<string, SubscribeRequestFilterBlocks> blocks = 4;
   map<string, SubscribeRequestFilterBlocksMeta> blocks_meta = 5;
   map<string, SubscribeRequestFilterEntry> entry = 8;
+  map<string, SubscribeRequestFilterTransactionAccounts> transaction_accounts = 12;
   optional CommitmentLevel commitment = 6;
   repeated SubscribeRequestAccountsDataSlice accounts_data_slice = 7;
   optional SubscribeRequestPing ping = 9;
@@ -128,6 +129,21 @@ enum TokenAccountExpansionControlFlag {
   BALANCE_CHANGED = 1;
 }
 
+message SubscribeRequestFilterTransactionAccounts {
+  // Filter by account OWNER - matches accounts owned by these programs
+  // Example: Token program ID to get all token/mint accounts
+  repeated string owner = 1;
+  // Filter by account PUBKEY - matches specific account addresses
+  // Example: Raydium AMM program ID to match that specific account
+  repeated string account = 2;
+  // If true, include ALL accounts from matching transactions
+  // If false, only include accounts matching owner/account filters
+  optional bool include_all_accounts = 3;
+  // If true, only include Token/Token2022 mint accounts (not token accounts)
+  // This filters read-only accounts to only mints based on account data size/structure
+  optional bool readonly_mints_only = 4;
+}
+
 message SubscribeRequestFilterBlocks {
   repeated string account_include = 1;
   optional bool include_transactions = 2;
@@ -185,6 +201,7 @@ message SubscribeUpdate {
     SubscribeUpdatePong pong = 9;
     SubscribeUpdateBlockMeta block_meta = 7;
     SubscribeUpdateEntry entry = 8;
+    SubscribeUpdateTransactionAccounts transaction_accounts = 12;
   }
   google.protobuf.Timestamp created_at = 11;
 }
@@ -269,6 +286,13 @@ message SubscribeUpdateEntry {
   bytes hash = 4;
   uint64 executed_transaction_count = 5;
   uint64 starting_transaction_index = 6; // added in v1.18, for solana 1.17 value is always 0
+}
+
+message SubscribeUpdateTransactionAccounts {
+  bytes signature = 1;
+  uint64 slot = 2;
+  uint64 index = 3;  // Transaction index in block
+  repeated SubscribeUpdateAccountInfo accounts = 4;
 }
 
 message SubscribeUpdateDeshredTransaction {
