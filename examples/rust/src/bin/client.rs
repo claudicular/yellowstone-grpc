@@ -613,6 +613,7 @@ impl Action {
                         transactions,
                         transactions_status,
                         entry: entries,
+                        transaction_accounts: HashMap::new(),
                         blocks,
                         blocks_meta,
                         commitment: commitment.map(|x| x as i32),
@@ -816,6 +817,8 @@ async fn geyser_subscribe(
     let pb_blocks = crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("blocks"))?;
     let mut pb_pp_c = 0;
     let pb_pp = crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("ping/pong"))?;
+    let mut pb_tx_accounts_c = 0;
+    let pb_tx_accounts = crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("transaction accounts"))?;
     let mut pb_total_c = 0;
     let pb_total = crate_progress_bar(&pb_multi, ProgressBarTpl::Total)?;
     let mut pb_verify_c = verify_encoding.then_some((0, 0));
@@ -840,6 +843,7 @@ async fn geyser_subscribe(
                         Some(UpdateOneof::Block(_)) => (&mut pb_blocks_c, &pb_blocks),
                         Some(UpdateOneof::Ping(_)) => (&mut pb_pp_c, &pb_pp),
                         Some(UpdateOneof::Pong(_)) => (&mut pb_pp_c, &pb_pp),
+                        Some(UpdateOneof::TransactionAccounts(_)) => (&mut pb_tx_accounts_c, &pb_tx_accounts),
                         None => {
                             pb_multi.println("update not found in the message")?;
                             break;
@@ -1015,6 +1019,17 @@ async fn geyser_subscribe(
                             .await?;
                     }
                     Some(UpdateOneof::Pong(_)) => {}
+                    Some(UpdateOneof::TransactionAccounts(msg)) => {
+                        print_update(
+                            "transactionAccounts",
+                            created_at,
+                            &filters,
+                            json!({
+                                "slot": msg.slot,
+                                "accounts": msg.accounts.into_iter().map(create_pretty_account).collect::<Result<Value, _>>()?,
+                            }),
+                        );
+                    }
                     None => {
                         error!("update not found in the message");
                         break;
@@ -1040,6 +1055,7 @@ async fn geyser_subscribe(
                     transactions: HashMap::default(),
                     transactions_status: HashMap::default(),
                     entry: HashMap::default(),
+                    transaction_accounts: HashMap::default(),
                     blocks: HashMap::default(),
                     blocks_meta: HashMap::default(),
                     commitment: None,

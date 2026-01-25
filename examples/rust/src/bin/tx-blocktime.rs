@@ -106,6 +106,7 @@ async fn main() -> anyhow::Result<()> {
                 account_required: args.account_required,
             } },
             entry: HashMap::new(),
+            transaction_accounts: HashMap::new(),
             blocks: HashMap::new(),
             blocks_meta: hashmap! { "".to_owned() => SubscribeRequestFilterBlocksMeta {} },
             commitment: Some(commitment as i32),
