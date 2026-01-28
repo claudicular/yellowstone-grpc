@@ -855,6 +855,7 @@ impl GrpcService {
                                 Message::Slot(_) => "Slot",
                                 Message::Account(_) => "Account",
                                 Message::Transaction(_) => "Transaction",
+                                Message::TransactionAccounts(_) => "TransactionAccounts",
                                 Message::Entry(_) => "Entry",
                                 Message::BlockMeta(_) => "BlockMeta",
                                 Message::Block(_) => "Block",
