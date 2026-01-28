@@ -112,5 +112,6 @@ codegen-units = 1
 agave-geyser-plugin-interface = { path = "../agave/geyser-plugin-interface" }
 solana-transaction-status = { path = "../agave/transaction-status" }
 solana-transaction-status-client-types = { path = "../agave/transaction-status-client-types" }
+solana-transaction-context = { path = "../agave/transaction-context" }
 solana-account-decoder = { path = "../agave/account-decoder" }
 solana-account-decoder-client-types = { path = "../agave/account-decoder-client-types" }
