@@ -109,9 +109,9 @@ lto = true
 codegen-units = 1
 
 [patch.crates-io]
-agave-geyser-plugin-interface = { path = "../agave/geyser-plugin-interface" }
-solana-transaction-status = { path = "../agave/transaction-status" }
-solana-transaction-status-client-types = { path = "../agave/transaction-status-client-types" }
-solana-transaction-context = { path = "../agave/transaction-context" }
-solana-account-decoder = { path = "../agave/account-decoder" }
-solana-account-decoder-client-types = { path = "../agave/account-decoder-client-types" }
+agave-geyser-plugin-interface = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
+solana-transaction-status = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
+solana-transaction-status-client-types = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
+solana-transaction-context = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
+solana-account-decoder = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
+solana-account-decoder-client-types = { git = "https://github.com/huan-ji/agave", branch = "add_tx_with_accounts_geyser" }
