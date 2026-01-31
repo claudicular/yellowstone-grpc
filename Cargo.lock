@@ -69,32 +69,20 @@ dependencies = [
 [[package]]
 name = "agave-feature-set"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "ahash",
  "solana-epoch-schedule",
  "solana-hash",
  "solana-pubkey",
  "solana-sha256-hasher",
- "solana-svm-feature-set 3.0.14",
-]
-
-[[package]]
-name = "agave-feature-set"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cf33c329313ce6f88702d02013def48afeff133ea897ee7071d57b8655b9af1"
-dependencies = [
- "ahash",
- "solana-epoch-schedule",
- "solana-hash",
- "solana-pubkey",
- "solana-sha256-hasher",
- "solana-svm-feature-set 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-svm-feature-set",
 ]
 
 [[package]]
 name = "agave-geyser-plugin-interface"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "log",
  "solana-clock",
@@ -102,26 +90,16 @@ dependencies = [
  "solana-pubkey",
  "solana-signature",
  "solana-transaction",
- "solana-transaction-status 3.0.14",
+ "solana-transaction-status",
  "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "agave-reserved-account-keys"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
- "agave-feature-set 3.0.14",
- "solana-pubkey",
- "solana-sdk-ids",
-]
-
-[[package]]
-name = "agave-reserved-account-keys"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c88b70eb0118706280ec9b63e458b227c297155e8c866a2be8e194cdb13d9896"
-dependencies = [
- "agave-feature-set 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "agave-feature-set",
  "solana-pubkey",
  "solana-sdk-ids",
 ]
@@ -2834,6 +2812,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "Inflector",
  "base64",
@@ -2844,50 +2823,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "solana-account",
- "solana-account-decoder-client-types 3.0.14",
- "solana-address-lookup-table-interface",
- "solana-clock",
- "solana-config-interface",
- "solana-epoch-schedule",
- "solana-fee-calculator",
- "solana-instruction",
- "solana-loader-v3-interface",
- "solana-nonce",
- "solana-program-option",
- "solana-program-pack",
- "solana-pubkey",
- "solana-rent",
- "solana-sdk-ids",
- "solana-slot-hashes",
- "solana-slot-history",
- "solana-stake-interface",
- "solana-sysvar",
- "solana-vote-interface",
- "spl-generic-token",
- "spl-token-2022-interface",
- "spl-token-group-interface",
- "spl-token-interface",
- "spl-token-metadata-interface",
- "thiserror 2.0.17",
- "zstd",
-]
-
-[[package]]
-name = "solana-account-decoder"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38beb03a0f14d6456d70bcace8c8ae5e0ad4812240f8979bc5397d343c286c78"
-dependencies = [
- "Inflector",
- "base64",
- "bincode",
- "bs58",
- "bv",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account",
- "solana-account-decoder-client-types 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-account-decoder-client-types",
  "solana-address-lookup-table-interface",
  "solana-clock",
  "solana-config-interface",
@@ -2918,22 +2854,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder-client-types"
 version = "3.0.14"
-dependencies = [
- "base64",
- "bs58",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account",
- "solana-pubkey",
- "zstd",
-]
-
-[[package]]
-name = "solana-account-decoder-client-types"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46fd55df200ac8f0292fbe2196fc11cbad9e48567b81d1e18b6f6a79513d4a4f"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "base64",
  "bs58",
@@ -3589,7 +3510,7 @@ dependencies = [
  "prost 0.11.9",
  "protobuf-src",
  "serde",
- "solana-account-decoder 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-account-decoder",
  "solana-hash",
  "solana-instruction",
  "solana-message",
@@ -3597,21 +3518,16 @@ dependencies = [
  "solana-serde",
  "solana-signature",
  "solana-transaction",
- "solana-transaction-context 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-context",
  "solana-transaction-error",
- "solana-transaction-status 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-status",
  "tonic-build 0.9.2",
 ]
 
 [[package]]
 name = "solana-svm-feature-set"
 version = "3.0.14"
-
-[[package]]
-name = "solana-svm-feature-set"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22e960a99c5620874b1deb5f00139f78753d67ec5626216f75c90842988f6c23"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 
 [[package]]
 name = "solana-system-interface"
@@ -3695,24 +3611,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-context"
 version = "3.0.14"
-dependencies = [
- "bincode",
- "serde",
- "serde_derive",
- "solana-account",
- "solana-instruction",
- "solana-instructions-sysvar",
- "solana-pubkey",
- "solana-rent",
- "solana-sbpf",
- "solana-sdk-ids",
-]
-
-[[package]]
-name = "solana-transaction-context"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b532aebf58bd36375a84e0a77432c8db546df535a7f3b7d5bc7c60fbcd5b0a2"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "bincode",
  "serde",
@@ -3741,9 +3640,10 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "Inflector",
- "agave-reserved-account-keys 3.0.14",
+ "agave-reserved-account-keys",
  "base64",
  "bincode",
  "borsh",
@@ -3752,7 +3652,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "solana-account-decoder 3.0.14",
+ "solana-account-decoder",
  "solana-address-lookup-table-interface",
  "solana-clock",
  "solana-hash",
@@ -3769,51 +3669,7 @@ dependencies = [
  "solana-system-interface",
  "solana-transaction",
  "solana-transaction-error",
- "solana-transaction-status-client-types 3.0.14",
- "solana-vote-interface",
- "spl-associated-token-account-interface",
- "spl-memo-interface",
- "spl-token-2022-interface",
- "spl-token-group-interface",
- "spl-token-interface",
- "spl-token-metadata-interface",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "solana-transaction-status"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ee7b3da7cb0a92722ba12e91a470201368c33f14e73b7b38a1491d9032e16d4"
-dependencies = [
- "Inflector",
- "agave-reserved-account-keys 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64",
- "bincode",
- "borsh",
- "bs58",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account-decoder 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "solana-address-lookup-table-interface",
- "solana-clock",
- "solana-hash",
- "solana-instruction",
- "solana-loader-v2-interface",
- "solana-loader-v3-interface",
- "solana-message",
- "solana-program-option",
- "solana-pubkey",
- "solana-reward-info",
- "solana-sdk-ids",
- "solana-signature",
- "solana-stake-interface",
- "solana-system-interface",
- "solana-transaction",
- "solana-transaction-error",
- "solana-transaction-status-client-types 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-status-client-types",
  "solana-vote-interface",
  "spl-associated-token-account-interface",
  "spl-memo-interface",
@@ -3827,6 +3683,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status-client-types"
 version = "3.0.14"
+source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#36cca0fd01168b389ad7a7d3d438996fd290e4e1"
 dependencies = [
  "base64",
  "bincode",
@@ -3834,7 +3691,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "solana-account-decoder-client-types 3.0.14",
+ "solana-account-decoder-client-types",
  "solana-commitment-config",
  "solana-instruction",
  "solana-message",
@@ -3842,32 +3699,7 @@ dependencies = [
  "solana-reward-info",
  "solana-signature",
  "solana-transaction",
- "solana-transaction-context 3.0.14",
- "solana-transaction-error",
- "thiserror 2.0.17",
-]
-
-[[package]]
-name = "solana-transaction-status-client-types"
-version = "3.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99be022d0e2908ff2a600c305c4c1dd3bb12896513629bcd2dd5c52efb09555a"
-dependencies = [
- "base64",
- "bincode",
- "bs58",
- "serde",
- "serde_derive",
- "serde_json",
- "solana-account-decoder-client-types 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "solana-commitment-config",
- "solana-instruction",
- "solana-message",
- "solana-pubkey",
- "solana-reward-info",
- "solana-signature",
- "solana-transaction",
- "solana-transaction-context 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-context",
  "solana-transaction-error",
  "thiserror 2.0.17",
 ]
@@ -5186,7 +5018,7 @@ dependencies = [
  "solana-hash",
  "solana-pubkey",
  "solana-signature",
- "solana-transaction-status 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-status",
  "tokio",
  "tonic",
  "yellowstone-grpc-client",
@@ -5252,7 +5084,7 @@ dependencies = [
  "serde",
  "smallvec",
  "solana-account",
- "solana-account-decoder 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-account-decoder",
  "solana-clock",
  "solana-hash",
  "solana-keypair",
@@ -5262,9 +5094,9 @@ dependencies = [
  "solana-signer",
  "solana-storage-proto",
  "solana-transaction",
- "solana-transaction-context 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-context",
  "solana-transaction-error",
- "solana-transaction-status 3.0.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "solana-transaction-status",
  "spl-token-2022-interface",
  "thiserror 2.0.17",
  "tonic",
