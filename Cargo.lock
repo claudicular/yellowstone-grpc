@@ -69,7 +69,7 @@ dependencies = [
 [[package]]
 name = "agave-feature-set"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "ahash",
  "solana-epoch-schedule",
@@ -82,7 +82,7 @@ dependencies = [
 [[package]]
 name = "agave-geyser-plugin-interface"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "log",
  "solana-clock",
@@ -97,7 +97,7 @@ dependencies = [
 [[package]]
 name = "agave-reserved-account-keys"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "agave-feature-set",
  "solana-pubkey 3.0.0",
@@ -3040,7 +3040,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "Inflector",
  "base64",
@@ -3081,7 +3081,7 @@ dependencies = [
 [[package]]
 name = "solana-account-decoder-client-types"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "base64",
  "bs58",
@@ -3792,7 +3792,7 @@ dependencies = [
 [[package]]
 name = "solana-svm-feature-set"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 
 [[package]]
 name = "solana-system-interface"
@@ -3876,7 +3876,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-context"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "bincode",
  "serde",
@@ -3904,7 +3904,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "Inflector",
  "agave-reserved-account-keys",
@@ -3946,7 +3946,7 @@ dependencies = [
 [[package]]
 name = "solana-transaction-status-client-types"
 version = "3.1.10"
-source = "git+https://github.com/huan-ji/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#19ec129f52618978537d38e29d1a3cc04688efe8"
 dependencies = [
  "base64",
  "bincode",
