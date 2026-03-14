@@ -1,3 +1,4 @@
+mod affinity;
 pub mod config;
 pub mod grpc;
 pub mod metered;

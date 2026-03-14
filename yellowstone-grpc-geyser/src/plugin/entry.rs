@@ -5,8 +5,8 @@ use {
         metrics::{self, PrometheusService},
         parallel::ParallelEncoder,
         plugin::message::{
-            Message, MessageAccount, MessageBlockMeta, MessageEntry, MessageSlot,
-            MessageTransaction,
+            Message, MessageAccount, MessageAccountInfo, MessageBlockMeta, MessageEntry,
+            MessageSlot, MessageTransaction, MessageTransactionAccounts,
         },
     },
     agave_geyser_plugin_interface::geyser_plugin_interface::{
@@ -93,7 +93,8 @@ impl GeyserPlugin for Plugin {
         }
         if let Some(tokio_cpus) = config.tokio.affinity.clone() {
             builder.on_thread_start(move || {
-                affinity::set_thread_affinity(&tokio_cpus).expect("failed to set affinity")
+                crate::affinity::set_thread_affinity(&tokio_cpus)
+                    .expect("failed to set affinity")
             });
         }
         let plugin_cancellation_token = CancellationToken::new();
