@@ -1129,7 +1129,7 @@ impl prost::Message for FilteredUpdateTransactionAccounts {
     }
 }
 
-#[cfg(any(test, feature = "plugin-bench"))]
+#[cfg(any(test, feature = "bench"))]
 pub mod tests {
     #[cfg(test)]
     use super::{FilteredUpdate, FilteredUpdateOneof};

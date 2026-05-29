@@ -193,6 +193,8 @@ impl Dedupable for SubscribeUpdate {
             UpdateOneof::Entry(m) => Some((m.slot, DedupKey::Entry(m.index))),
             UpdateOneof::BlockMeta(m) => Some((m.slot, DedupKey::BlockMeta(m.blockhash.clone()))),
             UpdateOneof::Block(m) => Some((m.slot, DedupKey::Block(m.slot))),
+            // Transaction-grouped account updates are not deduplicated (not replayable).
+            UpdateOneof::TransactionAccounts(_) => None,
             UpdateOneof::Ping(_) | UpdateOneof::Pong(_) => None,
         }
     }
