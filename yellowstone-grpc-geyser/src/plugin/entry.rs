@@ -339,13 +339,14 @@ impl GeyserPlugin for Plugin {
         true
     }
 
-    fn transaction_accounts_include_readonly_owners(&self) -> Vec<Pubkey> {
-        vec![
+    fn transaction_accounts_include_readonly_owners(&self) -> &[Pubkey] {
+        static READONLY_OWNERS: [Pubkey; 2] = [
             // Token Program
             solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
             // Token 2022 Program
             solana_pubkey::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-        ]
+        ];
+        &READONLY_OWNERS
     }
 
     fn notify_transaction_accounts(
