@@ -96,13 +96,13 @@ uuid = "1"
 vergen = "9.0.6"
 wincode = "0.4.4"
 
-# Agave Monorepo
-agave-geyser-plugin-interface = "=4.0.2"
-solana-account-decoder = "=4.0.2"
+# Agave Monorepo (patched to the claudicular/agave fork at v4.0.3, see [patch.crates-io])
+agave-geyser-plugin-interface = "=4.0.3"
+solana-account-decoder = "=4.0.3"
 solana-logger = "3.0.0"
-solana-storage-proto = { version = "4.0.2", features = ["agave-unstable-api"] }
-solana-transaction-context = "=4.0.2"
-solana-transaction-status = "=4.0.2"
+solana-storage-proto = { version = "4.0.3", features = ["agave-unstable-api"] }
+solana-transaction-context = "=4.0.3"
+solana-transaction-status = "=4.0.3"
 
 # Solana SDK
 solana-account = "3.4.0"
@@ -144,12 +144,13 @@ lto = true
 codegen-units = 1
 
 # Patched agave fork carrying the `notify_transaction_accounts` Geyser callback
-# (transaction-grouped account notifications), rebased onto agave 4.0.0.
+# (transaction-grouped account notifications), rebased onto agave 4.0.3.
 # Source: https://github.com/claudicular/agave/tree/add_tx_with_accounts_geyser
 # Tracks the branch tip; Cargo.lock pins the exact resolved revision.
 # Run `cargo update -p agave-geyser-plugin-interface` (etc.) to pick up fork changes.
 [patch.crates-io]
 agave-geyser-plugin-interface = { git = "https://github.com/claudicular/agave", branch = "add_tx_with_accounts_geyser" }
+solana-storage-proto = { git = "https://github.com/claudicular/agave", branch = "add_tx_with_accounts_geyser" }
 solana-transaction-status = { git = "https://github.com/claudicular/agave", branch = "add_tx_with_accounts_geyser" }
 solana-transaction-status-client-types = { git = "https://github.com/claudicular/agave", branch = "add_tx_with_accounts_geyser" }
 solana-transaction-context = { git = "https://github.com/claudicular/agave", branch = "add_tx_with_accounts_geyser" }

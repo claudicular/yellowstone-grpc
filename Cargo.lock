@@ -68,9 +68,8 @@ dependencies = [
 
 [[package]]
 name = "agave-feature-set"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c090477303f71070364446c91055717de720fac212f0cf9919725b22b0df48a8"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "ahash",
  "solana-epoch-schedule",
@@ -83,13 +82,13 @@ dependencies = [
 
 [[package]]
 name = "agave-geyser-plugin-interface"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7effc6f7f7980ab10ebcb6df0bf051b78279c68bc97b480f51b5b3b62e43e4f6"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "log",
  "solana-clock",
  "solana-hash 4.2.0",
+ "solana-pubkey 4.1.0",
  "solana-signature",
  "solana-transaction",
  "solana-transaction-status",
@@ -98,9 +97,8 @@ dependencies = [
 
 [[package]]
 name = "agave-reserved-account-keys"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc9c465c08efe6c072da8965770f6690ffe94ebca8aca7cea85ff22d8d5a0108"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "agave-feature-set",
  "solana-pubkey 4.1.0",
@@ -3344,9 +3342,8 @@ dependencies = [
 
 [[package]]
 name = "solana-account-decoder"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f21f4a78f247b1011529e1b95d101c001bebc11b9e124112892706e382039079"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "Inflector",
  "base64",
@@ -3386,9 +3383,8 @@ dependencies = [
 
 [[package]]
 name = "solana-account-decoder-client-types"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78759fa0401ad569d21691ca97879d2886b51e1fd6bac41210fefe6cf7f02f81"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "base64",
  "bs58",
@@ -4080,9 +4076,8 @@ dependencies = [
 
 [[package]]
 name = "solana-storage-proto"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0f34658d2fd5dabefbec155408469eccf48891967231a5c74c7e5dcade19057"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "bincode",
  "bs58",
@@ -4105,9 +4100,8 @@ dependencies = [
 
 [[package]]
 name = "solana-svm-feature-set"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "979bce8c92b72acb832586950a000247f6045d905955ef4a0527abb3cec32ba2"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 
 [[package]]
 name = "solana-system-interface"
@@ -4205,9 +4199,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-context"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df3a903b57138c1b3340064b3df725cd7cb1da6a8c896a5e099450e9f36ee3fb"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "bincode",
  "serde",
@@ -4235,9 +4228,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-status"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d49b26dd573e5aa1ed28c414020018dbe49b926df681ba14741d905d8b39753"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "Inflector",
  "agave-reserved-account-keys",
@@ -4278,9 +4270,8 @@ dependencies = [
 
 [[package]]
 name = "solana-transaction-status-client-types"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0742fee266154ea849b9d7ded7f02d73934191c15702b67f4fd5ec1ce4cee0e"
+version = "4.0.3"
+source = "git+https://github.com/claudicular/agave?branch=add_tx_with_accounts_geyser#3c3e6bcaebceaf82aac452fbb43fe41f38befc2e"
 dependencies = [
  "base64",
  "bincode",

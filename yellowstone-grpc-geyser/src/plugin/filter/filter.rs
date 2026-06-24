@@ -1301,9 +1301,9 @@ const ACCOUNT_TYPE_ACCOUNT: u8 = 2;
 #[derive(Debug, Clone)]
 struct FilterTransactionAccountsInner {
     /// Filter by account owner - matches accounts whose owner is in this set
-    owner: HashSet<Pubkey>,
+    owner: FoldHashSet<Pubkey>,
     /// Filter by account pubkey - matches accounts whose pubkey is in this set
-    account: HashSet<Pubkey>,
+    account: FoldHashSet<Pubkey>,
     include_all_accounts: bool,
     readonly_mints_only: bool,
 }
