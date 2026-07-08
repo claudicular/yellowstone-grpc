@@ -868,7 +868,8 @@ async fn geyser_subscribe(
     let mut pb_pp_c = 0;
     let pb_pp = crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("ping/pong"))?;
     let mut pb_tx_accounts_c = 0;
-    let pb_tx_accounts = crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("transaction accounts"))?;
+    let pb_tx_accounts =
+        crate_progress_bar(&pb_multi, ProgressBarTpl::Msg("transaction accounts"))?;
     let mut pb_total_c = 0;
     let pb_total = crate_progress_bar(&pb_multi, ProgressBarTpl::Total)?;
 
@@ -896,7 +897,9 @@ async fn geyser_subscribe(
                         Some(UpdateOneof::Block(_)) => (&mut pb_blocks_c, &pb_blocks),
                         Some(UpdateOneof::Ping(_)) => (&mut pb_pp_c, &pb_pp),
                         Some(UpdateOneof::Pong(_)) => (&mut pb_pp_c, &pb_pp),
-                        Some(UpdateOneof::TransactionAccounts(_)) => (&mut pb_tx_accounts_c, &pb_tx_accounts),
+                        Some(UpdateOneof::TransactionAccounts(_)) => {
+                            (&mut pb_tx_accounts_c, &pb_tx_accounts)
+                        }
                         None => {
                             pb_multi.println("update not found in the message")?;
                             break;
