@@ -18,8 +18,8 @@ use {
     agave_geyser_plugin_interface::geyser_plugin_interface::{
         GeyserPlugin, GeyserPluginError, ReplicaAccountInfoVersions, ReplicaBlockInfoVersions,
         ReplicaDeshredTransactionInfoVersions, ReplicaEntryInfoVersions,
-        ReplicaTransactionAccountsInfoVersions,
-        ReplicaTransactionInfoVersions, Result as PluginResult, SlotStatus,
+        ReplicaTransactionAccountsInfoVersions, ReplicaTransactionInfoVersions,
+        Result as PluginResult, SlotStatus,
     },
     solana_pubkey::Pubkey,
     std::{
