@@ -153,11 +153,11 @@ pub struct FilterLimitsTransactionAccounts {
     #[serde(deserialize_with = "deserialize_usize_str")]
     pub owner_max: usize,
     #[serde(deserialize_with = "deserialize_pubkey_set")]
-    pub owner_reject: HashSet<Pubkey>,
+    pub owner_reject: FoldHashSet<Pubkey>,
     #[serde(deserialize_with = "deserialize_usize_str")]
     pub account_max: usize,
     #[serde(deserialize_with = "deserialize_pubkey_set")]
-    pub account_reject: HashSet<Pubkey>,
+    pub account_reject: FoldHashSet<Pubkey>,
 }
 
 impl Default for FilterLimitsTransactionAccounts {
@@ -166,9 +166,9 @@ impl Default for FilterLimitsTransactionAccounts {
             max: usize::MAX,
             any: true,
             owner_max: usize::MAX,
-            owner_reject: HashSet::new(),
+            owner_reject: FoldHashSet::new(),
             account_max: usize::MAX,
-            account_reject: HashSet::new(),
+            account_reject: FoldHashSet::new(),
         }
     }
 }

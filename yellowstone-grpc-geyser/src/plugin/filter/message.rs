@@ -141,7 +141,13 @@ impl FilteredUpdate {
         message: &MessageAccount,
         data_slice: &FilterAccountsDataSlice,
     ) -> SubscribeUpdateAccountInfo {
-        let acc = &message.account;
+        Self::as_subscribe_update_account_info(&message.account, data_slice)
+    }
+
+    fn as_subscribe_update_account_info(
+        acc: &MessageAccountInfo,
+        data_slice: &FilterAccountsDataSlice,
+    ) -> SubscribeUpdateAccountInfo {
         let data_slice = data_slice.get_slice(acc.data.iter().as_slice());
         SubscribeUpdateAccountInfo {
             pubkey: acc.pubkey.as_ref().into(),
@@ -255,7 +261,7 @@ impl FilteredUpdate {
                         .accounts
                         .iter()
                         .map(|acc| {
-                            Self::as_subscribe_update_account(
+                            Self::as_subscribe_update_account_info(
                                 acc.as_ref(),
                                 &msg.accounts_data_slice,
                             )

@@ -101,6 +101,9 @@ impl GeyserEventAdapter for E2EGeyserEventAdapter {
                 Some(GeyserEventInfo::Transaction { slot: tx.slot })
             }
             UpdateOneof::Block(block) => Some(GeyserEventInfo::Other { slot: block.slot }),
+            // Fork-only event: transaction-grouped account updates play no part in
+            // block reconstruction, so they are not tracked by the block machine.
+            UpdateOneof::TransactionAccounts(_) => None,
             UpdateOneof::Ping(_) => None,
             UpdateOneof::Pong(_) => None,
         }
