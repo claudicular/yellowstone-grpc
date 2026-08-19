@@ -722,6 +722,7 @@ mod tests {
       slots: HashMap::new(),
       transactions: HashMap::new(),
       transactions_status: HashMap::new(),
+      transaction_accounts: HashMap::new(),
       blocks: HashMap::new(),
       blocks_meta: HashMap::new(),
       entry: HashMap::new(),
