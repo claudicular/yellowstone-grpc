@@ -42,7 +42,7 @@ message SubscribeRequest {
   map<string, SubscribeRequestFilterBlocks> blocks = 4;
   map<string, SubscribeRequestFilterBlocksMeta> blocks_meta = 5;
   map<string, SubscribeRequestFilterEntry> entry = 8;
-  map<string, SubscribeRequestFilterTransactionAccounts> transaction_accounts = 12;
+  map<string, SubscribeRequestFilterTransactionAccounts> transaction_accounts = 100;
   optional CommitmentLevel commitment = 6;
   repeated SubscribeRequestAccountsDataSlice accounts_data_slice = 7;
   optional SubscribeRequestPing ping = 9;
@@ -144,7 +144,7 @@ message SubscribeUpdate {
     SubscribeUpdatePong pong = 9;
     SubscribeUpdateBlockMeta block_meta = 7;
     SubscribeUpdateEntry entry = 8;
-    SubscribeUpdateTransactionAccounts transaction_accounts = 12;
+    SubscribeUpdateTransactionAccounts transaction_accounts = 100;
   }
   google.protobuf.Timestamp created_at = 11;
 }

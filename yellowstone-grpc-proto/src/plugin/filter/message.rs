@@ -438,7 +438,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::Pong(msg) => message::encode(9u32, msg, buf),
             Self::BlockMeta(msg) => message::encode(7u32, &msg.block_meta, buf),
             Self::Entry(msg) => message::encode(8u32, msg, buf),
-            Self::TransactionAccounts(msg) => message::encode(12u32, msg, buf),
+            Self::TransactionAccounts(msg) => message::encode(100u32, msg, buf),
         }
     }
 
@@ -453,7 +453,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::Pong(msg) => message::encoded_len(9u32, msg),
             Self::BlockMeta(msg) => message::encoded_len(7u32, &msg.block_meta),
             Self::Entry(msg) => message::encoded_len(8u32, msg),
-            Self::TransactionAccounts(msg) => message::encoded_len(12u32, msg),
+            Self::TransactionAccounts(msg) => message::encoded_len(100u32, msg),
         }
     }
 
