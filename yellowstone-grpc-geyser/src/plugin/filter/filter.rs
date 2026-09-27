@@ -2632,6 +2632,7 @@ impl FilterTransactionAccounts {
                     index: message.index,
                     accounts,
                     accounts_data_slice: accounts_data_slice.clone(),
+                    bank_id: message.bank_id,
                 }),
                 message.created_at,
             ));

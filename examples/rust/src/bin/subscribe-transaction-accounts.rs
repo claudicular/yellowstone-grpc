@@ -160,6 +160,7 @@ fn handle_transaction_accounts_update(
     info!("  Signature: {}", signature);
     info!("  Slot: {}", update.slot);
     info!("  Index: {}", update.index);
+    info!("  Bank ID: {}", update.bank_id);
     info!("  Filters matched: {:?}", filters);
     info!("  Accounts ({} total):", update.accounts.len());
 

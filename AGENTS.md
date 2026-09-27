@@ -102,6 +102,17 @@ cargo run --bin subscribe-transaction-accounts -- \
 The plugin opts in via `GeyserPlugin::transaction_accounts_notifications_enabled() == true`;
 the validator only emits the data when launched with `--enable-transaction-accounts-notify`.
 
+**Wire numbering:** the fork-only fields use tag `100` (`SubscribeRequest.transaction_accounts`
+and the `SubscribeUpdate.transaction_accounts` oneof arm), far above upstream's range. They
+were `12` until v16, when upstream took `12` for `block_footer`; clients built from older
+fork protos must regenerate. The hand-rolled encoder in `plugin/filter/message.rs` hardcodes
+the tag, so keep it in sync with the proto.
+
+**`bank_id` (since agave 4.3.0):** each update carries the bank that committed the transaction.
+Under Alpenglow an `UpdateParent` can clear a bank and replace it within the same slot, so
+consumers should drop updates whose `bank_id` matches an `entry_update_parent.cleared_bank_id`
+(sent to `entry` filters with `include_update_parent: true`).
+
 ## Running with Validator
 
 ```bash

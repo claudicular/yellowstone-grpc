@@ -661,6 +661,7 @@ impl GeyserPlugin for Plugin {
     fn notify_transaction_accounts(
         &self,
         transaction_accounts: ReplicaTransactionAccountsInfoVersions,
+        bank_id: BankId,
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
             let info = match transaction_accounts {
@@ -679,6 +680,7 @@ impl GeyserPlugin for Plugin {
                 info.slot,
                 info.index as u64,
                 accounts,
+                bank_id,
             )));
             inner.send_message(message);
 

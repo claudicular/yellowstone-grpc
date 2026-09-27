@@ -593,6 +593,7 @@ pub struct MessageTransactionAccounts {
     pub slot: Slot,
     pub index: u64,
     pub accounts: Vec<Arc<MessageAccountInfo>>,
+    pub bank_id: BankId,
     pub created_at: Timestamp,
 }
 
@@ -602,12 +603,14 @@ impl MessageTransactionAccounts {
         slot: Slot,
         index: u64,
         accounts: Vec<Arc<MessageAccountInfo>>,
+        bank_id: BankId,
     ) -> Self {
         Self {
             signature,
             slot,
             index,
             accounts,
+            bank_id,
             created_at: Timestamp::from(SystemTime::now()),
         }
     }

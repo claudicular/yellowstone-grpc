@@ -276,6 +276,7 @@ impl FilteredUpdate {
                             )
                         })
                         .collect(),
+                    bank_id: msg.bank_id,
                 })
             }
         };
@@ -1316,6 +1317,7 @@ pub struct FilteredUpdateTransactionAccounts {
     pub index: u64,
     pub accounts: Vec<Arc<MessageAccountInfo>>,
     pub accounts_data_slice: FilterAccountsDataSlice,
+    pub bank_id: u64,
 }
 
 impl prost::Message for FilteredUpdateTransactionAccounts {
@@ -1334,6 +1336,9 @@ impl prost::Message for FilteredUpdateTransactionAccounts {
                 &self.accounts_data_slice,
                 buf,
             );
+        }
+        if self.bank_id != 0u64 {
+            ::prost::encoding::uint64::encode(5u32, &self.bank_id, buf);
         }
     }
 
@@ -1355,6 +1360,11 @@ impl prost::Message for FilteredUpdateTransactionAccounts {
                     &self.accounts_data_slice,
                 )
             })
+            + if self.bank_id != 0u64 {
+                ::prost::encoding::uint64::encoded_len(5u32, &self.bank_id)
+            } else {
+                0
+            }
     }
 
     fn merge_field(
@@ -1966,6 +1976,36 @@ pub mod tests {
     fn test_message_entry() {
         for entry in create_entries() {
             encode_decode_cmp(&["123"], FilteredUpdateOneof::entry(entry));
+        }
+    }
+
+    #[test]
+    fn test_message_transaction_accounts() {
+        // Fork-only oneof field (100): checks the hand-rolled encoder against prost,
+        // including the zero-valued (skipped) slot/index/bank_id edges.
+        let accounts = create_accounts_raw()
+            .into_iter()
+            .map(Arc::new)
+            .collect::<Vec<_>>();
+        let signature = Signature::from([7u8; 64]);
+        for accounts in std::iter::once(&accounts[..0]).chain(accounts.chunks(16)) {
+            for accounts_data_slice in create_account_data_slice() {
+                for (slot, index, bank_id) in [(0, 0, 0), (42, 7, 43)] {
+                    encode_decode_cmp(
+                        &["123"],
+                        FilteredUpdateOneof::transaction_accounts(
+                            super::FilteredUpdateTransactionAccounts {
+                                signature,
+                                slot,
+                                index,
+                                accounts: accounts.to_vec(),
+                                accounts_data_slice: accounts_data_slice.clone(),
+                                bank_id,
+                            },
+                        ),
+                    );
+                }
+            }
         }
     }
 }

@@ -356,6 +356,9 @@ message SubscribeUpdateTransactionAccounts {
   uint64 slot = 2;
   uint64 index = 3;  // Transaction index in block
   repeated SubscribeUpdateAccountInfo accounts = 4;
+  // Bank instance that committed the transaction. Under Alpenglow an UpdateParent
+  // can clear a bank; drop updates whose bank_id matches a cleared_bank_id.
+  uint64 bank_id = 5;
 }
 
 message SubscribeUpdateDeshredTransaction {
