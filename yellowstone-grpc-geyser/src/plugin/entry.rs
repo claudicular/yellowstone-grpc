@@ -664,9 +664,7 @@ impl GeyserPlugin for Plugin {
         bank_id: BankId,
     ) -> PluginResult<()> {
         self.with_inner(|inner| {
-            let info = match transaction_accounts {
-                ReplicaTransactionAccountsInfoVersions::V0_0_1(info) => info,
-            };
+            let ReplicaTransactionAccountsInfoVersions::V0_0_1(info) = transaction_accounts;
 
             // Convert accounts to MessageAccountInfo
             let accounts: Vec<Arc<MessageAccountInfo>> = info
