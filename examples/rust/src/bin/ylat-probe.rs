@@ -66,6 +66,9 @@ struct Args {
     /// connection, like geyserbench does, so the server sees the same client mix.
     #[clap(long)]
     deshred: bool,
+    /// Subscription commitment: processed (default), confirmed or finalized.
+    #[clap(long, default_value = "processed")]
+    commitment: String,
 }
 
 fn now_ns() -> u64 {
@@ -187,7 +190,11 @@ async fn run(args: Args) -> anyhow::Result<()> {
     );
     tx.send(SubscribeRequest {
         transaction_accounts: filters,
-        commitment: Some(CommitmentLevel::Processed as i32),
+        commitment: Some(match args.commitment.as_str() {
+            "confirmed" => CommitmentLevel::Confirmed,
+            "finalized" => CommitmentLevel::Finalized,
+            _ => CommitmentLevel::Processed,
+        } as i32),
         ..Default::default()
     })
     .await?;
