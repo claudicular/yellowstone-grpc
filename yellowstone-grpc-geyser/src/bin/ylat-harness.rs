@@ -443,7 +443,9 @@ fn main() -> anyhow::Result<()> {
         })?);
     }
 
+    let callback_ns: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
     for p in 0..args.producers {
+        let callback_ns = Arc::clone(&callback_ns);
         let plugin = Arc::clone(&plugin);
         let txs = Arc::clone(&txs);
         let data = Arc::clone(&data);
@@ -453,6 +455,7 @@ fn main() -> anyhow::Result<()> {
         handles.push(std::thread::Builder::new().name(format!("ylatProd{p}")).spawn(move || {
             let mut n = 0usize;
             let hash = [7u8; 32];
+            let mut cb_ns: Vec<u64> = Vec::with_capacity(txs.len() / producers + 1);
             for tx in txs.iter() {
                 // Spread transactions over producers like agave's parallel commit threads.
                 if (tx.signature.as_ref()[0] as usize) % producers != p {
@@ -472,6 +475,7 @@ fn main() -> anyhow::Result<()> {
                     index: tx.index,
                     accounts: &infos,
                 };
+                let cb_start = Instant::now();
                 plugin.with(|p| {
                     let _ = p.notify_transaction_accounts(
                         ReplicaTransactionAccountsInfoVersions::V0_0_1(&grouped),
@@ -488,6 +492,7 @@ fn main() -> anyhow::Result<()> {
                         );
                     });
                 }
+                cb_ns.push(cb_start.elapsed().as_nanos() as u64);
                 n += 1;
                 if n % entry_every == 0 {
                     let entry = ReplicaEntryInfoV2 {
@@ -503,6 +508,7 @@ fn main() -> anyhow::Result<()> {
                     });
                 }
             }
+            callback_ns.lock().unwrap().extend(cb_ns);
         })?);
     }
     if let Some(reload_lib) = args.reload_lib.clone() {
@@ -527,6 +533,15 @@ fn main() -> anyhow::Result<()> {
         start.elapsed().as_secs_f64(),
         plugin.dropped.load(Ordering::Relaxed)
     );
+    {
+        let mut v = std::mem::take(&mut *callback_ns.lock().unwrap());
+        v.sort_unstable();
+        let p = |q: f64| v.get(((v.len() as f64 * q) as usize).min(v.len().saturating_sub(1))).copied().unwrap_or(0) as f64 / 1000.0;
+        eprintln!(
+            "ylat-harness: per-tx callback time (tx_accounts + its account updates) us: p50 {:.1} p90 {:.1} p99 {:.1} p99.9 {:.1}",
+            p(0.5), p(0.9), p(0.99), p(0.999)
+        );
+    }
     std::thread::sleep(Duration::from_secs(1));
     if args.lib.is_none() && args.reload_lib.is_none() {
         let n = yellowstone_grpc_geyser::ylat_trace::dump(&args.stages_out)?;
