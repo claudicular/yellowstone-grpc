@@ -23,8 +23,8 @@ use {
     yellowstone_grpc_proto::prelude::{
         geyser_client::GeyserClient, subscribe_update::UpdateOneof, CommitmentLevel,
         SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks,
-        SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterEntry,
-        SubscribeRequestFilterSlots, SubscribeRequestFilterTransactionAccounts, SubscribeUpdate,
+        SubscribeRequestFilterBlocksMeta, SubscribeRequestFilterEntry, SubscribeRequestFilterSlots,
+        SubscribeRequestFilterTransactionAccounts, SubscribeUpdate,
     },
 };
 
@@ -204,12 +204,14 @@ fn replay(plugin: &Plugin) {
                 .collect();
             plugin
                 .notify_transaction_accounts(
-                    ReplicaTransactionAccountsInfoVersions::V0_0_1(&ReplicaTransactionAccountsInfo {
-                        signature: &signature,
-                        slot,
-                        index: i,
-                        accounts: &infos,
-                    }),
+                    ReplicaTransactionAccountsInfoVersions::V0_0_1(
+                        &ReplicaTransactionAccountsInfo {
+                            signature: &signature,
+                            slot,
+                            index: i,
+                            accounts: &infos,
+                        },
+                    ),
                     slot,
                 )
                 .unwrap();
@@ -306,11 +308,10 @@ async fn collect(
     tokio::time::sleep(Duration::from_millis(500)).await;
     let _ = ready.send(());
     let mut out = Vec::new();
-    loop {
-        match tokio::time::timeout(Duration::from_secs(3), stream.next()).await {
-            Ok(Some(Ok(update))) => out.extend(normalize(update)),
-            _ => break,
-        }
+    while let Ok(Some(Ok(update))) =
+        tokio::time::timeout(Duration::from_secs(3), stream.next()).await
+    {
+        out.extend(normalize(update));
     }
     let _keep = tx;
     out
@@ -384,8 +385,16 @@ fn delivery_runtime_changes_timing_only() {
         r#"{ "worker_threads": 2, "busy_poll": true }"#,
     ] {
         let (p, c) = run(Some(runtime));
-        assert_eq!(p.len(), base_p.len(), "processed count differs for {runtime}");
-        assert_eq!(c.len(), base_c.len(), "confirmed count differs for {runtime}");
+        assert_eq!(
+            p.len(),
+            base_p.len(),
+            "processed count differs for {runtime}"
+        );
+        assert_eq!(
+            c.len(),
+            base_c.len(),
+            "confirmed count differs for {runtime}"
+        );
         for (i, (a, b)) in p.iter().zip(&base_p).enumerate() {
             assert_eq!(a, b, "processed update #{i} differs for {runtime}");
         }

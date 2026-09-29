@@ -128,7 +128,9 @@ async fn run(args: Args) -> anyhow::Result<()> {
     let mut client = GeyserClient::new(channel).max_decoding_message_size(64 * 1024 * 1024);
 
     if args.deshred {
-        let channel = Endpoint::from_shared(args.endpoint.clone())?.connect().await?;
+        let channel = Endpoint::from_shared(args.endpoint.clone())?
+            .connect()
+            .await?;
         let mut deshred_client =
             GeyserClient::new(channel).max_decoding_message_size(64 * 1024 * 1024);
         let (mut dtx, drx) = futures::channel::mpsc::unbounded::<SubscribeDeshredRequest>();
@@ -236,7 +238,13 @@ async fn run(args: Args) -> anyhow::Result<()> {
                     }
                     writeln!(record)?;
                 }
-                rows.push((recv_ns, created, u.slot, u.accounts.len() as u32, u.signature));
+                rows.push((
+                    recv_ns,
+                    created,
+                    u.slot,
+                    u.accounts.len() as u32,
+                    u.signature,
+                ));
             }
             Some(UpdateOneof::Ping(_)) => {
                 let _ = tx
@@ -254,7 +262,10 @@ async fn run(args: Args) -> anyhow::Result<()> {
         record.flush()?;
     }
     let mut out = std::io::BufWriter::new(std::fs::File::create(&args.out)?);
-    writeln!(out, "signature,slot,accounts,server_created_unix_ns,recv_unix_ns")?;
+    writeln!(
+        out,
+        "signature,slot,accounts,server_created_unix_ns,recv_unix_ns"
+    )?;
     let mut lat: Vec<f64> = Vec::with_capacity(rows.len());
     for (recv, created, slot, n, sig) in &rows {
         writeln!(
@@ -266,7 +277,11 @@ async fn run(args: Args) -> anyhow::Result<()> {
     }
     out.flush()?;
     lat.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let p = |q: f64| lat.get(((lat.len() as f64 * q) as usize).min(lat.len().saturating_sub(1))).copied().unwrap_or(f64::NAN);
+    let p = |q: f64| {
+        lat.get(((lat.len() as f64 * q) as usize).min(lat.len().saturating_sub(1)))
+            .copied()
+            .unwrap_or(f64::NAN)
+    };
     eprintln!(
         "ylat-probe: {} msgs created->recv ms p50 {:.3} p90 {:.3} p99 {:.3} p99.9 {:.3}",
         lat.len(),

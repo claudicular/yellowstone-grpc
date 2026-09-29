@@ -113,6 +113,30 @@ Under Alpenglow an `UpdateParent` can clear a bank and replace it within the sam
 consumers should drop updates whose `bank_id` matches an `entry_update_parent.cleared_bank_id`
 (sent to `entry` filters with `include_update_parent: true`).
 
+## Dedicated delivery runtime (`grpc_runtime`, fork-only)
+
+Optional top-level config section. When present, the geyser loop (plugin queue -> processed
+broadcast) and the whole gRPC server (listeners, connections, per-client filter loops, HTTP/2
+encoding) run on a separate tokio runtime; block reconstruction, contact info, block-meta
+storage and Prometheus stay on `tokio`. Without it nothing changes.
+
+```json
+"grpc_runtime": { "worker_threads": 1, "busy_poll": true, "affinity": "46", "thread_name": "solGeyserGrpcX" }
+```
+
+- Why: delivery needs a few percent of one core, but on a validator the 48-worker general
+  runtime shares busy cores, so each hop (callback -> geyser loop -> client loop -> HTTP/2
+  task) can wait 0.1-4 ms for a CPU. On FRA this made `created_at` -> socket write
+  p50 0.06 / p90 0.9 / p99 2.2 ms.
+- `busy_poll` keeps each worker spinning (100% of its CPU) so a queued message is picked up in
+  about a microsecond; use it only on CPUs dedicated to this runtime.
+- Threads are named `{thread_name}{N}` (`solGeyserGrpcX0`); an external pinning service that
+  re-pins all validator threads must skip or place this prefix, or `affinity` is overridden.
+- `examples/rust/tests/delivery_runtime_equivalence.rs` checks that subscriber streams are
+  identical with and without it. Latency tooling: `ylat-harness` (replays a recorded mainnet
+  trace through the plugin callbacks, in-process or via dlopen, including a `plugin reload`),
+  `ylat-probe` (minimal pinned client), and `examples/rust/ylat/` (pcap and stage splits).
+
 ## Running with Validator
 
 ```bash

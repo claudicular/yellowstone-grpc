@@ -69,7 +69,10 @@ pub fn dump(path: &str) -> std::io::Result<usize> {
     let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
     writeln!(out, "signature,created_ns,loop_ns,client_ns,encode_ns")?;
     for (signature, created, loop_ns, client_ns, encode_ns) in &records {
-        writeln!(out, "{signature},{created},{loop_ns},{client_ns},{encode_ns}")?;
+        writeln!(
+            out,
+            "{signature},{created},{loop_ns},{client_ns},{encode_ns}"
+        )?;
     }
     out.flush()?;
     Ok(records.len())

@@ -20,9 +20,9 @@ use {
     solana_hash::Hash,
     solana_message::{legacy::Message as LegacyMessage, MessageHeader, VersionedMessage},
     solana_pubkey::Pubkey,
+    solana_signature::Signature,
     solana_transaction::versioned::VersionedTransaction,
     solana_transaction_status::TransactionStatusMeta,
-    solana_signature::Signature,
     std::{
         collections::BTreeMap,
         io::{BufRead, BufReader},
@@ -161,7 +161,10 @@ fn thread_census() -> String {
     if let Ok(dir) = std::fs::read_dir("/proc/self/task") {
         for entry in dir.flatten() {
             let name = std::fs::read_to_string(entry.path().join("comm")).unwrap_or_default();
-            let name = name.trim().trim_end_matches(|c: char| c.is_ascii_digit()).to_owned();
+            let name = name
+                .trim()
+                .trim_end_matches(|c: char| c.is_ascii_digit())
+                .to_owned();
             *counts.entry(name).or_default() += 1;
         }
     }
@@ -239,7 +242,12 @@ fn wait_until(deadline: Instant) {
     }
 }
 
-fn account<'a>(pubkey: &'a Pubkey, owner: &'a Pubkey, data: &'a [u8], wv: u64) -> ReplicaAccountInfoV3<'a> {
+fn account<'a>(
+    pubkey: &'a Pubkey,
+    owner: &'a Pubkey,
+    data: &'a [u8],
+    wv: u64,
+) -> ReplicaAccountInfoV3<'a> {
     ReplicaAccountInfoV3 {
         pubkey: pubkey.as_ref(),
         lamports: 2_039_280,
@@ -285,7 +293,9 @@ fn status_meta(n_keys: usize) -> TransactionStatusMeta {
         post_balances: vec![999_000; n_keys],
         log_messages: Some(
             (0..12)
-                .map(|i| format!("Program log: instruction {i} consumed 12345 of 200000 compute units"))
+                .map(|i| {
+                    format!("Program log: instruction {i} consumed 12345 of 200000 compute units")
+                })
                 .collect(),
         ),
         inner_instructions: Some(vec![]),
@@ -352,71 +362,125 @@ fn main() -> anyhow::Result<()> {
         let slots = Arc::clone(&slots);
         let write_version = Arc::clone(&write_version);
         let txstatus = args.txstatus_after_us >= 0;
-        handles.push(std::thread::Builder::new().name("ylatSlots".into()).spawn(move || {
-            let mut closed: Vec<u64> = Vec::new();
-            let rewards = solana_transaction_status::RewardsAndNumPartitions {
-                rewards: Vec::new(),
-                num_partitions: None,
-            };
-            for (time, slot, kind) in events {
-                wait_until(at(time));
-                let parent = Some(slot.saturating_sub(1));
-                // A bank seals (Block messages, confirmed/finalized replays) only after agave's
-                // sysvar writes: Clock and SlotHashes at bank creation, the rest at freeze.
-                let sysvars = |keys: &[Pubkey]| {
-                    let data = slot.to_le_bytes();
-                    for key in keys {
-                        let info = account(key, &SYSVAR_OWNER, &data, write_version.fetch_add(1, Ordering::Relaxed));
-                        plugin.with(|p| {
-                            let _ = p.update_account_for_bank(ReplicaAccountInfoVersions::V0_0_3(&info), slot, slot);
-                        });
-                    }
-                };
-                if kind == 0 {
-                    sysvars(&SYSVARS[..2]);
-                    plugin.with(|p| { let _ = p.update_slot_status(slot, parent, &SlotStatus::FirstShredReceived); });
-                    plugin.with(|p| { let _ = p.update_bank_status(slot, parent, &SlotStatus::CreatedBank, slot); });
-                } else {
-                    let count = if txstatus { slots.get(&slot).map(|s| s.2).unwrap_or(0) } else { 0 };
-                    sysvars(&SYSVARS[2..]);
-                    plugin.with(|p| { let _ = p.update_slot_status(slot, parent, &SlotStatus::Completed); });
-                    let hash = format!("{slot:044}");
-                    let parent_hash = format!("{:044}", slot.saturating_sub(1));
-                    let info = ReplicaBlockInfoV4 {
-                        parent_slot: slot.saturating_sub(1),
-                        parent_blockhash: &parent_hash,
-                        slot,
-                        blockhash: &hash,
-                        rewards: &rewards,
-                        block_time: Some(0),
-                        block_height: Some(slot),
-                        executed_transaction_count: count,
-                        entry_count: 0,
+        handles.push(
+            std::thread::Builder::new()
+                .name("ylatSlots".into())
+                .spawn(move || {
+                    let mut closed: Vec<u64> = Vec::new();
+                    let rewards = solana_transaction_status::RewardsAndNumPartitions {
+                        rewards: Vec::new(),
+                        num_partitions: None,
                     };
-                    plugin.with(|p| {
-                        let _ = p.notify_block_metadata_for_bank(
-                            ReplicaBlockInfoVersions::V0_0_4(&info),
-                            slot,
-                        );
-                        let _ = p.update_bank_status(slot, parent, &SlotStatus::Processed, slot);
-                    });
-                    closed.push(slot);
-                    if closed.len() > 2 {
-                        let c = closed[closed.len() - 3];
-                        plugin.with(|p| { let _ = p.update_bank_status(c, Some(c.saturating_sub(1)), &SlotStatus::Confirmed, c); });
+                    for (time, slot, kind) in events {
+                        wait_until(at(time));
+                        let parent = Some(slot.saturating_sub(1));
+                        // A bank seals (Block messages, confirmed/finalized replays) only after agave's
+                        // sysvar writes: Clock and SlotHashes at bank creation, the rest at freeze.
+                        let sysvars = |keys: &[Pubkey]| {
+                            let data = slot.to_le_bytes();
+                            for key in keys {
+                                let info = account(
+                                    key,
+                                    &SYSVAR_OWNER,
+                                    &data,
+                                    write_version.fetch_add(1, Ordering::Relaxed),
+                                );
+                                plugin.with(|p| {
+                                    let _ = p.update_account_for_bank(
+                                        ReplicaAccountInfoVersions::V0_0_3(&info),
+                                        slot,
+                                        slot,
+                                    );
+                                });
+                            }
+                        };
+                        if kind == 0 {
+                            sysvars(&SYSVARS[..2]);
+                            plugin.with(|p| {
+                                let _ = p.update_slot_status(
+                                    slot,
+                                    parent,
+                                    &SlotStatus::FirstShredReceived,
+                                );
+                            });
+                            plugin.with(|p| {
+                                let _ = p.update_bank_status(
+                                    slot,
+                                    parent,
+                                    &SlotStatus::CreatedBank,
+                                    slot,
+                                );
+                            });
+                        } else {
+                            let count = if txstatus {
+                                slots.get(&slot).map(|s| s.2).unwrap_or(0)
+                            } else {
+                                0
+                            };
+                            sysvars(&SYSVARS[2..]);
+                            plugin.with(|p| {
+                                let _ = p.update_slot_status(slot, parent, &SlotStatus::Completed);
+                            });
+                            let hash = format!("{slot:044}");
+                            let parent_hash = format!("{:044}", slot.saturating_sub(1));
+                            let info = ReplicaBlockInfoV4 {
+                                parent_slot: slot.saturating_sub(1),
+                                parent_blockhash: &parent_hash,
+                                slot,
+                                blockhash: &hash,
+                                rewards: &rewards,
+                                block_time: Some(0),
+                                block_height: Some(slot),
+                                executed_transaction_count: count,
+                                entry_count: 0,
+                            };
+                            plugin.with(|p| {
+                                let _ = p.notify_block_metadata_for_bank(
+                                    ReplicaBlockInfoVersions::V0_0_4(&info),
+                                    slot,
+                                );
+                                let _ = p.update_bank_status(
+                                    slot,
+                                    parent,
+                                    &SlotStatus::Processed,
+                                    slot,
+                                );
+                            });
+                            closed.push(slot);
+                            if closed.len() > 2 {
+                                let c = closed[closed.len() - 3];
+                                plugin.with(|p| {
+                                    let _ = p.update_bank_status(
+                                        c,
+                                        Some(c.saturating_sub(1)),
+                                        &SlotStatus::Confirmed,
+                                        c,
+                                    );
+                                });
+                            }
+                            if closed.len() > 32 {
+                                let r = closed[closed.len() - 33];
+                                plugin.with(|p| {
+                                    let _ = p.update_bank_status(
+                                        r,
+                                        Some(r.saturating_sub(1)),
+                                        &SlotStatus::Rooted,
+                                        r,
+                                    );
+                                });
+                            }
+                        }
                     }
-                    if closed.len() > 32 {
-                        let r = closed[closed.len() - 33];
-                        plugin.with(|p| { let _ = p.update_bank_status(r, Some(r.saturating_sub(1)), &SlotStatus::Rooted, r); });
-                    }
-                }
-            }
-        })?);
+                })?,
+        );
     }
 
     // agave's transaction-status thread (after commit) and the deshred path (before
     // execution) emit from their own threads.
-    for (name, offset_us) in [("ylatTxStatus", args.txstatus_after_us), ("ylatDeshred", -args.deshred_before_us)] {
+    for (name, offset_us) in [
+        ("ylatTxStatus", args.txstatus_after_us),
+        ("ylatDeshred", -args.deshred_before_us),
+    ] {
         if (name == "ylatTxStatus" && args.txstatus_after_us < 0)
             || (name == "ylatDeshred" && args.deshred_before_us < 0)
         {
@@ -425,45 +489,49 @@ fn main() -> anyhow::Result<()> {
         let plugin = Arc::clone(&plugin);
         let txs = Arc::clone(&txs);
         let deshred = name == "ylatDeshred";
-        handles.push(std::thread::Builder::new().name(name.into()).spawn(move || {
-            let hash = Hash::default();
-            for tx in txs.iter() {
-                let t = (tx.rel_ns as i64 + offset_us * 1000).max(0) as u64;
-                wait_until(at(t));
-                let vtx = versioned_tx(tx);
-                if deshred {
-                    let info = ReplicaDeshredTransactionInfo {
-                        signature: &tx.signature,
-                        is_vote: false,
-                        transaction: &vtx,
-                        loaded_addresses: None,
-                    };
-                    plugin.with(|p| {
-                        let _ = p.notify_deshred_transaction(
-                            ReplicaDeshredTransactionInfoVersions::V0_0_1(&info),
-                            tx.slot,
-                        );
-                    });
-                } else {
-                    let meta = status_meta(vtx.message.static_account_keys().len());
-                    let info = ReplicaTransactionInfoV3 {
-                        signature: &tx.signature,
-                        message_hash: &hash,
-                        is_vote: false,
-                        transaction: &vtx,
-                        transaction_status_meta: &meta,
-                        index: tx.index,
-                    };
-                    plugin.with(|p| {
-                        let _ = p.notify_transaction_for_bank(
-                            ReplicaTransactionInfoVersions::V0_0_3(&info),
-                            tx.slot,
-                            tx.slot,
-                        );
-                    });
-                }
-            }
-        })?);
+        handles.push(
+            std::thread::Builder::new()
+                .name(name.into())
+                .spawn(move || {
+                    let hash = Hash::default();
+                    for tx in txs.iter() {
+                        let t = (tx.rel_ns as i64 + offset_us * 1000).max(0) as u64;
+                        wait_until(at(t));
+                        let vtx = versioned_tx(tx);
+                        if deshred {
+                            let info = ReplicaDeshredTransactionInfo {
+                                signature: &tx.signature,
+                                is_vote: false,
+                                transaction: &vtx,
+                                loaded_addresses: None,
+                            };
+                            plugin.with(|p| {
+                                let _ = p.notify_deshred_transaction(
+                                    ReplicaDeshredTransactionInfoVersions::V0_0_1(&info),
+                                    tx.slot,
+                                );
+                            });
+                        } else {
+                            let meta = status_meta(vtx.message.static_account_keys().len());
+                            let info = ReplicaTransactionInfoV3 {
+                                signature: &tx.signature,
+                                message_hash: &hash,
+                                is_vote: false,
+                                transaction: &vtx,
+                                transaction_status_meta: &meta,
+                                index: tx.index,
+                            };
+                            plugin.with(|p| {
+                                let _ = p.notify_transaction_for_bank(
+                                    ReplicaTransactionInfoVersions::V0_0_3(&info),
+                                    tx.slot,
+                                    tx.slot,
+                                );
+                            });
+                        }
+                    }
+                })?,
+        );
     }
 
     let callback_ns: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(Vec::new()));
@@ -475,72 +543,93 @@ fn main() -> anyhow::Result<()> {
         let write_version = Arc::clone(&write_version);
         let producers = args.producers;
         let entry_every = args.entry_every.max(1);
-        handles.push(std::thread::Builder::new().name(format!("ylatProd{p}")).spawn(move || {
-            let mut n = 0usize;
-            let hash = [7u8; 32];
-            let mut cb_ns: Vec<u64> = Vec::with_capacity(txs.len() / producers + 1);
-            for tx in txs.iter() {
-                // Spread transactions over producers like agave's parallel commit threads.
-                if (tx.signature.as_ref()[0] as usize) % producers != p {
-                    continue;
-                }
-                wait_until(at(tx.rel_ns));
-                let wv0 = write_version.fetch_add(tx.accounts.len() as u64 * 2, Ordering::Relaxed);
-                let infos: Vec<ReplicaAccountInfoV3<'_>> = tx
-                    .accounts
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (pubkey, owner, len))| account(pubkey, owner, &data[..*len], wv0 + i as u64))
-                    .collect();
-                let grouped = ReplicaTransactionAccountsInfo {
-                    signature: &tx.signature,
-                    slot: tx.slot,
-                    index: tx.index,
-                    accounts: &infos,
-                };
-                let cb_start = Instant::now();
-                plugin.with(|p| {
-                    let _ = p.notify_transaction_accounts(
-                        ReplicaTransactionAccountsInfoVersions::V0_0_1(&grouped),
-                        tx.slot,
-                    );
-                });
-                for (i, (pubkey, owner, len)) in tx.accounts.iter().enumerate() {
-                    let info = account(pubkey, owner, &data[..*len], wv0 + (tx.accounts.len() + i) as u64);
-                    plugin.with(|p| {
-                        let _ = p.update_account_for_bank(
-                            ReplicaAccountInfoVersions::V0_0_3(&info),
-                            tx.slot,
-                            tx.slot,
-                        );
-                    });
-                }
-                cb_ns.push(cb_start.elapsed().as_nanos() as u64);
-                n += 1;
-                if n % entry_every == 0 {
-                    let entry = ReplicaEntryInfoV2 {
-                        slot: tx.slot,
-                        index: n,
-                        num_hashes: 1,
-                        hash: &hash,
-                        executed_transaction_count: entry_every as u64,
-                        starting_transaction_index: tx.index,
-                    };
-                    plugin.with(|p| {
-                        let _ = p.notify_entry_for_bank(ReplicaEntryInfoVersions::V0_0_2(&entry), tx.slot);
-                    });
-                }
-            }
-            callback_ns.lock().unwrap().extend(cb_ns);
-        })?);
+        handles.push(
+            std::thread::Builder::new()
+                .name(format!("ylatProd{p}"))
+                .spawn(move || {
+                    let mut n = 0usize;
+                    let hash = [7u8; 32];
+                    let mut cb_ns: Vec<u64> = Vec::with_capacity(txs.len() / producers + 1);
+                    for tx in txs.iter() {
+                        // Spread transactions over producers like agave's parallel commit threads.
+                        if (tx.signature.as_ref()[0] as usize) % producers != p {
+                            continue;
+                        }
+                        wait_until(at(tx.rel_ns));
+                        let wv0 = write_version
+                            .fetch_add(tx.accounts.len() as u64 * 2, Ordering::Relaxed);
+                        let infos: Vec<ReplicaAccountInfoV3<'_>> = tx
+                            .accounts
+                            .iter()
+                            .enumerate()
+                            .map(|(i, (pubkey, owner, len))| {
+                                account(pubkey, owner, &data[..*len], wv0 + i as u64)
+                            })
+                            .collect();
+                        let grouped = ReplicaTransactionAccountsInfo {
+                            signature: &tx.signature,
+                            slot: tx.slot,
+                            index: tx.index,
+                            accounts: &infos,
+                        };
+                        let cb_start = Instant::now();
+                        plugin.with(|p| {
+                            let _ = p.notify_transaction_accounts(
+                                ReplicaTransactionAccountsInfoVersions::V0_0_1(&grouped),
+                                tx.slot,
+                            );
+                        });
+                        for (i, (pubkey, owner, len)) in tx.accounts.iter().enumerate() {
+                            let info = account(
+                                pubkey,
+                                owner,
+                                &data[..*len],
+                                wv0 + (tx.accounts.len() + i) as u64,
+                            );
+                            plugin.with(|p| {
+                                let _ = p.update_account_for_bank(
+                                    ReplicaAccountInfoVersions::V0_0_3(&info),
+                                    tx.slot,
+                                    tx.slot,
+                                );
+                            });
+                        }
+                        cb_ns.push(cb_start.elapsed().as_nanos() as u64);
+                        n += 1;
+                        if n.is_multiple_of(entry_every) {
+                            let entry = ReplicaEntryInfoV2 {
+                                slot: tx.slot,
+                                index: n,
+                                num_hashes: 1,
+                                hash: &hash,
+                                executed_transaction_count: entry_every as u64,
+                                starting_transaction_index: tx.index,
+                            };
+                            plugin.with(|p| {
+                                let _ = p.notify_entry_for_bank(
+                                    ReplicaEntryInfoVersions::V0_0_2(&entry),
+                                    tx.slot,
+                                );
+                            });
+                        }
+                    }
+                    callback_ns.lock().unwrap().extend(cb_ns);
+                })?,
+        );
     }
     if let Some(reload_lib) = args.reload_lib.clone() {
-        let reload_config = args.reload_config.clone().unwrap_or_else(|| args.config.clone());
+        let reload_config = args
+            .reload_config
+            .clone()
+            .unwrap_or_else(|| args.config.clone());
         wait_until(start + Duration::from_secs(args.reload_at_s));
         eprintln!("ylat-harness: reload: threads before: {}", thread_census());
         let t = Instant::now();
         plugin.unload();
-        eprintln!("ylat-harness: reload: threads after unload: {}", thread_census());
+        eprintln!(
+            "ylat-harness: reload: threads after unload: {}",
+            thread_census()
+        );
         plugin.load(Some(&reload_lib), &reload_config, true)?;
         eprintln!(
             "ylat-harness: reload done in {:?}; threads after: {}",
@@ -559,7 +648,12 @@ fn main() -> anyhow::Result<()> {
     {
         let mut v = std::mem::take(&mut *callback_ns.lock().unwrap());
         v.sort_unstable();
-        let p = |q: f64| v.get(((v.len() as f64 * q) as usize).min(v.len().saturating_sub(1))).copied().unwrap_or(0) as f64 / 1000.0;
+        let p = |q: f64| {
+            v.get(((v.len() as f64 * q) as usize).min(v.len().saturating_sub(1)))
+                .copied()
+                .unwrap_or(0) as f64
+                / 1000.0
+        };
         eprintln!(
             "ylat-harness: per-tx callback time (tx_accounts + its account updates) us: p50 {:.1} p90 {:.1} p99 {:.1} p99.9 {:.1}",
             p(0.5), p(0.9), p(0.99), p(0.999)
@@ -568,9 +662,15 @@ fn main() -> anyhow::Result<()> {
     std::thread::sleep(Duration::from_secs(1));
     if args.lib.is_none() && args.reload_lib.is_none() {
         let n = yellowstone_grpc_geyser::ylat_trace::dump(&args.stages_out)?;
-        eprintln!("ylat-harness: wrote {n} stage records to {}", args.stages_out);
+        eprintln!(
+            "ylat-harness: wrote {n} stage records to {}",
+            args.stages_out
+        );
     }
     plugin.unload();
-    eprintln!("ylat-harness: threads after final unload: {}", thread_census());
+    eprintln!(
+        "ylat-harness: threads after final unload: {}",
+        thread_census()
+    );
     Ok(())
 }

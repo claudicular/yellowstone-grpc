@@ -13,7 +13,8 @@ receive time by signature:
     server  = wire_last - created_at     (Yellowstone internal: queues, tasks, h2 encode)
     client  = recv - wire_last           (kernel loopback + client runtime + decode)
 
-Usage: ylat_pcap.py capture.pcap probe.csv [geyserbench_run.csv]
+Usage: ylat_pcap.py capture.pcap probe.csv|- [geyserbench_run.csv]
+       (YLAT_PORT=<client port> selects the connection; YLAT_DUMP=<csv> dumps per-message rows)
 """
 import csv
 import struct
@@ -109,16 +110,30 @@ def main():
     gb_csv = sys.argv[3] if len(sys.argv) > 3 else None
 
     # Reassemble the server->client byte stream; remember the capture time of each segment.
-    isn = None
-    segs = {}
+    # With several connections in the capture, YLAT_PORT picks one (client port); otherwise
+    # the connection with the most transaction_accounts payload (field-100 tag) is used.
+    import os
+    conns = {}
     for ts, sport, dport, seq, flags, payload in read_pcap(pcap):
+        c = conns.setdefault(dport, {"isn": None, "segs": {}, "hits": 0})
         if flags & 0x02:  # SYN(-ACK) from the server
-            isn = (seq + 1) & 0xFFFFFFFF
+            c["isn"] = (seq + 1) & 0xFFFFFFFF
             continue
-        if payload and seq not in segs:
-            segs[seq] = (ts, payload)
+        if payload and seq not in c["segs"]:
+            c["segs"][seq] = (ts, payload)
+            c["hits"] += payload.count(b"\xa2\x06")
+    want = os.environ.get("YLAT_PORT")
+    cands = [p for p, c in conns.items() if c["isn"] is not None]
+    if want:
+        port = int(want)
+    elif cands:
+        port = max(cands, key=lambda p: conns[p]["hits"])
+    else:
+        raise SystemExit("no SYN in capture: start tcpdump before the client connects")
+    print("connection: client port", port, "of", sorted(conns))
+    isn, segs = conns[port]["isn"], conns[port]["segs"]
     if isn is None:
-        raise SystemExit("no SYN in capture: start tcpdump before the probe connects")
+        raise SystemExit("no SYN for port %d" % port)
     stream = bytearray()
     times = []  # (end_offset_exclusive, ts)
     pos = isn
@@ -194,9 +209,10 @@ def main():
         j += 5 + n
 
     probe = {}
-    with open(probe_csv) as f:
-        for r in csv.DictReader(f):
-            probe[r["signature"]] = int(r["recv_unix_ns"])
+    if probe_csv != "-":
+        with open(probe_csv) as f:
+            for r in csv.DictReader(f):
+                probe[r["signature"]] = int(r["recv_unix_ns"])
     gb = {}
     if gb_csv:
         with open(gb_csv) as f:
@@ -237,7 +253,9 @@ def main():
     pct(cli, "client(probe): wire -> recv")
     pct(tot, "total(probe): created_at -> recv")
     if gb_csv:
+        gbw = [(gb[sig] - v[2]) / 1e6 for sig, v in out.items() if sig in gb]
         pct(gbt, "geyserbench: created_at -> recv")
+        pct(gbw, "geyserbench: wire -> recv")
         pct(gbcli, "geyserbench recv - probe recv")
 
 

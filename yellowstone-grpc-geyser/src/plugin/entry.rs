@@ -723,9 +723,7 @@ fn build_grpc_runtime(config: &ConfigGrpcRuntime) -> PluginResult<Runtime> {
     builder.worker_threads(config.worker_threads);
     let prefix = config.thread_name.clone();
     let next_id = Arc::new(AtomicUsize::new(0));
-    builder.thread_name_fn(move || {
-        format!("{prefix}{}", next_id.fetch_add(1, Ordering::Relaxed))
-    });
+    builder.thread_name_fn(move || format!("{prefix}{}", next_id.fetch_add(1, Ordering::Relaxed)));
     if let Some(cpus) = config.affinity.clone() {
         builder.on_thread_start(move || {
             if let Err(error) = crate::util::cpu_core_affinity::set_thread_affinity(&cpus) {
