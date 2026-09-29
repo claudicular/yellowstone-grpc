@@ -4,7 +4,7 @@ use {
     std::{
         fmt,
         path::{Path, PathBuf},
-        sync::{Arc, Mutex},
+        sync::{Arc, Mutex, Weak},
     },
 };
 
@@ -109,7 +109,10 @@ impl fmt::Debug for FileWatcher {
 }
 
 struct FileChangeEvHandler {
-    inner: Arc<Mutex<Inner>>,
+    // Weak: `Inner` owns the notify watcher, whose event thread owns this handler; a strong
+    // reference here would keep both alive forever, so the watcher thread (code of this
+    // library) survived every plugin unload.
+    inner: Weak<Mutex<Inner>>,
 }
 
 impl FileChangeEvHandler {
@@ -131,10 +134,14 @@ impl EventHandler for FileChangeEvHandler {
                     return;
                 }
 
+                let Some(inner) = self.inner.upgrade() else {
+                    return;
+                };
                 let registrations_snapshot = {
-                    let guard = self.inner.lock().expect("file watcher mutex poisoned");
+                    let guard = inner.lock().expect("file watcher mutex poisoned");
                     guard.registrations.clone()
                 };
+                drop(inner);
 
                 for registration in registrations_snapshot {
                     if registration.matches_event(&event) {
@@ -157,7 +164,7 @@ impl FileWatcher {
             next_registration_id: 0,
         }));
         let handler = FileChangeEvHandler {
-            inner: Arc::clone(&inner),
+            inner: Arc::downgrade(&inner),
         };
         // Unless we see a useful case in prod to follow symlinks, we will disable it to avoid potential security issues with symlink attacks.
         let watcher = notify::RecommendedWatcher::new(

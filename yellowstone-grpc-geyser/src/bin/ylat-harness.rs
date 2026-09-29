@@ -172,6 +172,14 @@ fn thread_census() -> String {
         .join(" ")
 }
 
+const SYSVARS: [Pubkey; 4] = [
+    solana_pubkey::pubkey!("SysvarC1ock11111111111111111111111111111111"),
+    solana_pubkey::pubkey!("SysvarS1otHashes111111111111111111111111111"),
+    solana_pubkey::pubkey!("SysvarS1otHistory11111111111111111111111111"),
+    solana_pubkey::pubkey!("SysvarRecentB1ockHashes11111111111111111111"),
+];
+const SYSVAR_OWNER: Pubkey = solana_pubkey::pubkey!("Sysvar1111111111111111111111111111111111111");
+
 struct Tx {
     rel_ns: u64,
     slot: u64,
@@ -333,15 +341,17 @@ fn main() -> anyhow::Result<()> {
     events.sort();
     let slots = Arc::new(slots);
 
+    let write_version = Arc::new(AtomicU64::new(1));
     let speed = args.speed;
     let start = Instant::now() + Duration::from_millis(50);
     let at = move |rel_ns: u64| start + Duration::from_nanos((rel_ns as f64 / speed) as u64);
-    let write_version = Arc::new(AtomicU64::new(1));
 
     let mut handles = Vec::new();
     {
         let plugin = Arc::clone(&plugin);
         let slots = Arc::clone(&slots);
+        let write_version = Arc::clone(&write_version);
+        let txstatus = args.txstatus_after_us >= 0;
         handles.push(std::thread::Builder::new().name("ylatSlots".into()).spawn(move || {
             let mut closed: Vec<u64> = Vec::new();
             let rewards = solana_transaction_status::RewardsAndNumPartitions {
@@ -351,11 +361,24 @@ fn main() -> anyhow::Result<()> {
             for (time, slot, kind) in events {
                 wait_until(at(time));
                 let parent = Some(slot.saturating_sub(1));
+                // A bank seals (Block messages, confirmed/finalized replays) only after agave's
+                // sysvar writes: Clock and SlotHashes at bank creation, the rest at freeze.
+                let sysvars = |keys: &[Pubkey]| {
+                    let data = slot.to_le_bytes();
+                    for key in keys {
+                        let info = account(key, &SYSVAR_OWNER, &data, write_version.fetch_add(1, Ordering::Relaxed));
+                        plugin.with(|p| {
+                            let _ = p.update_account_for_bank(ReplicaAccountInfoVersions::V0_0_3(&info), slot, slot);
+                        });
+                    }
+                };
                 if kind == 0 {
+                    sysvars(&SYSVARS[..2]);
                     plugin.with(|p| { let _ = p.update_slot_status(slot, parent, &SlotStatus::FirstShredReceived); });
                     plugin.with(|p| { let _ = p.update_bank_status(slot, parent, &SlotStatus::CreatedBank, slot); });
                 } else {
-                    let count = slots.get(&slot).map(|s| s.2).unwrap_or(0);
+                    let count = if txstatus { slots.get(&slot).map(|s| s.2).unwrap_or(0) } else { 0 };
+                    sysvars(&SYSVARS[2..]);
                     plugin.with(|p| { let _ = p.update_slot_status(slot, parent, &SlotStatus::Completed); });
                     let hash = format!("{slot:044}");
                     let parent_hash = format!("{:044}", slot.saturating_sub(1));
