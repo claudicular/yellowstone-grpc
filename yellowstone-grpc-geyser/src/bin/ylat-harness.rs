@@ -45,6 +45,12 @@ use {
     },
 };
 
+// Same global allocator as agave-validator (unprefixed jemalloc): messages are allocated on
+// the callback threads and freed on the delivery thread, so the allocator matters.
+#[cfg(target_os = "linux")]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[derive(Debug, Clone, Parser)]
 struct Args {
     /// Plugin config (use a port other than the validator's, e.g. 127.0.0.1:10077).

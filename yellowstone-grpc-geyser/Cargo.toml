@@ -24,7 +24,7 @@ required-features = ["ylat-trace"]
 default = []
 bench = ["dep:solana-storage-proto"]
 # Per-message delivery stage stamps for the ylat-harness benchmark (never in production).
-ylat-trace = ["dep:libloading"]
+ylat-trace = ["dep:libloading", "dep:tikv-jemallocator"]
 
 [dependencies]
 foldhash = { workspace = true }
@@ -97,6 +97,12 @@ spl-token-2022-interface = { workspace = true }
 # Yellowstone
 yellowstone-grpc-proto = { workspace = true, features = ["tonic", "account-data-as-bytes"] }
 yellowstone-grpc-tools = { workspace = true }
+
+
+# ylat-harness only: agave's allocator (unprefixed jemalloc, so a dlopen'd plugin's malloc
+# resolves to it too, exactly as inside agave-validator).
+[target.'cfg(target_os = "linux")'.dependencies]
+tikv-jemallocator = { version = "0.6.0", features = ["unprefixed_malloc_on_supported_platforms"], optional = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 # wrapped in mod cpu_core_affinity
