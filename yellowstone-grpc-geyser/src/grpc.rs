@@ -842,10 +842,15 @@ impl GrpcService {
         task_tracker: TaskTracker,
         file_watcher: Arc<FileWatcher>,
         messages_rx: St,
+        general: tokio::runtime::Handle,
     ) -> anyhow::Result<GrpcServiceResult>
     where
         St: BatchStream<Item = Message> + Unpin + Send + 'static,
     {
+        // `create` runs inside the runtime that serves subscribers (the dedicated delivery
+        // runtime when configured): the listeners, their connections and per-client tasks,
+        // and the geyser loop are spawned there. Work that is not on the processed-commitment
+        // delivery path (block reconstruction, contact info) goes to `general`.
         // Bind all configured addresses (TCP or Unix domain socket)
         let mut listeners = Vec::new();
 
@@ -1044,10 +1049,13 @@ impl GrpcService {
 
         let (contact_info_tx, contact_info_rx) = mpsc::unbounded_channel();
 
-        task_tracker.spawn(contact_info::contact_info_loop(
-            UnboundedReceiverStream::new(contact_info_rx),
-            Arc::clone(&contact_info_state),
-        ));
+        task_tracker.spawn_on(
+            contact_info::contact_info_loop(
+                UnboundedReceiverStream::new(contact_info_rx),
+                Arc::clone(&contact_info_state),
+            ),
+            &general,
+        );
 
         // Capture traffic reporting threshold before config is moved
         let traffic_reporting_threshold = config
@@ -1106,16 +1114,19 @@ impl GrpcService {
         {
             let broadcast = broadcast.clone();
 
-            task_tracker.spawn(async move {
-                Self::block_reconstruction_loop(
-                    BatchStreamUnboundedReceiver::new(block_reconstruction_rx),
-                    broadcast,
-                    replay_stored_slots_rx,
-                    replay_first_available_slot,
-                    config.replay_stored_slots,
-                )
-                .await;
-            });
+            task_tracker.spawn_on(
+                async move {
+                    Self::block_reconstruction_loop(
+                        BatchStreamUnboundedReceiver::new(block_reconstruction_rx),
+                        broadcast,
+                        replay_stored_slots_rx,
+                        replay_first_available_slot,
+                        config.replay_stored_slots,
+                    )
+                    .await;
+                },
+                &general,
+            );
         }
 
         {
@@ -1322,6 +1333,15 @@ impl GrpcService {
             };
 
             if !buffer.message_batch.is_empty() {
+                #[cfg(feature = "ylat-trace")]
+                {
+                    let now = crate::ylat_trace::now_ns();
+                    for message in &buffer.message_batch {
+                        if let Message::TransactionAccounts(msg) = message {
+                            crate::ylat_trace::stamp_loop(&msg.signature, now);
+                        }
+                    }
+                }
                 metrics::message_queue_size_dec_by(buffer.message_batch.len() as i64);
                 let message_batch_arc = Arc::new(std::mem::take(&mut buffer.message_batch));
                 broadcast.send(CommitmentLevel::Processed, Arc::clone(&message_batch_arc));
@@ -1675,6 +1695,15 @@ impl GrpcService {
                         }
                     };
 
+                    #[cfg(feature = "ylat-trace")]
+                    {
+                        let now = crate::ylat_trace::now_ns();
+                        for message in messages.iter() {
+                            if let Message::TransactionAccounts(msg) = message {
+                                crate::ylat_trace::stamp_client(&msg.signature, now);
+                            }
+                        }
+                    }
                     for message in messages.iter() {
                         for message in session.filter.get_updates(message, Some(commitment)) {
                             match stream_tx.try_send(Ok(message)) {

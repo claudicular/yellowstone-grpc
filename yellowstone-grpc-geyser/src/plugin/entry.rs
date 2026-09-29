@@ -1,6 +1,6 @@
 use {
     crate::{
-        config::Config,
+        config::{Config, ConfigGrpcRuntime},
         contact_info::ContactInfoNotification,
         file_watcher::FileWatcher,
         grpc::{BlockReconstructionMessage, GrpcService, SubscriberChannels},
@@ -31,7 +31,7 @@ use {
     std::{
         concat, env,
         sync::{
-            atomic::{AtomicBool, Ordering},
+            atomic::{AtomicBool, AtomicUsize, Ordering},
             Arc, Mutex, Once,
         },
         time::Duration,
@@ -47,6 +47,8 @@ use {
 #[derive(Debug)]
 pub struct PluginInner {
     runtime: Runtime,
+    /// Dedicated delivery runtime (geyser loop + gRPC server), if configured.
+    grpc_runtime: Option<Runtime>,
     snapshot_channel: Mutex<Option<crossbeam_channel::Sender<Box<Message>>>>,
     snapshot_channel_closed: AtomicBool,
     filter_limits: FilterLimits,
@@ -164,6 +166,14 @@ impl GeyserPlugin for Plugin {
             .enable_all()
             .build()
             .map_err(|error| GeyserPluginError::Custom(Box::new(error)))?;
+        let grpc_runtime = config
+            .grpc_runtime
+            .as_ref()
+            .map(build_grpc_runtime)
+            .transpose()?;
+        let general_handle = runtime.handle().clone();
+        let prometheus_config = config.prometheus;
+        let grpc_config = config.grpc;
 
         let file_watcher = crate::file_watcher::FileWatcher::new().map_err(|error| {
             GeyserPluginError::Custom(format!("failed to create file watcher: {error:?}").into())
@@ -171,35 +181,45 @@ impl GeyserPlugin for Plugin {
         let file_watcher = Arc::new(file_watcher);
         let geyser_svc_file_watcher = Arc::clone(&file_watcher);
         let (grpc_channel_tx, grpc_channel_receiver) = mpsc::unbounded_channel();
-        let result = runtime.block_on(async move {
-            static CRYPTO_PROVIDER_INIT: Once = Once::new();
+        let result = runtime
+            .block_on(async move {
+                static CRYPTO_PROVIDER_INIT: Once = Once::new();
 
-            CRYPTO_PROVIDER_INIT.call_once(|| {
-                let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+                CRYPTO_PROVIDER_INIT.call_once(|| {
+                    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+                });
+                // Create prometheus service First so if it fails the plugin doesn't spawn geyser tasks unnecessarily.
+                PrometheusService::spawn(
+                    prometheus_config,
+                    prometheus_cancellation_token,
+                    prometheus_task_tracker,
+                    &VERSION,
+                )
+                .await
+                .map_err(|error| GeyserPluginError::Custom(Box::new(error)))
+            })
+            .and_then(|()| {
+                // The gRPC service is created inside the delivery runtime when one is
+                // configured: its listeners, connections, client loops and the geyser loop
+                // then live there, while block reconstruction and contact info are spawned on
+                // the general runtime (`general_handle`).
+                let grpc_channel_rx = BatchStreamUnboundedReceiver::new(grpc_channel_receiver);
+                let delivery = grpc_runtime
+                    .as_ref()
+                    .map(|rt| rt.handle().clone())
+                    .unwrap_or_else(|| general_handle.clone());
+                delivery
+                    .block_on(GrpcService::create(
+                        grpc_config,
+                        is_reload,
+                        grpc_cancellation_token,
+                        grpc_task_tracker,
+                        geyser_svc_file_watcher,
+                        grpc_channel_rx,
+                        general_handle,
+                    ))
+                    .map_err(|error| GeyserPluginError::Custom(format!("{error:?}").into()))
             });
-            // Create prometheus service First so if it fails the plugin doesn't spawn geyser tasks unnecessarily.
-            PrometheusService::spawn(
-                config.prometheus,
-                prometheus_cancellation_token,
-                prometheus_task_tracker,
-                &VERSION,
-            )
-            .await
-            .map_err(|error| GeyserPluginError::Custom(Box::new(error)))?;
-
-            let grpc_channel_rx = BatchStreamUnboundedReceiver::new(grpc_channel_receiver);
-            let grpc_service_result = GrpcService::create(
-                config.grpc,
-                is_reload,
-                grpc_cancellation_token,
-                grpc_task_tracker,
-                geyser_svc_file_watcher,
-                grpc_channel_rx,
-            )
-            .await
-            .map_err(|error| GeyserPluginError::Custom(format!("{error:?}").into()))?;
-            Ok::<_, GeyserPluginError>(grpc_service_result)
-        });
 
         let grpc_service_result = match result {
             Ok(val) => val,
@@ -213,6 +233,7 @@ impl GeyserPlugin for Plugin {
 
         self.inner = Some(PluginInner {
             runtime,
+            grpc_runtime,
             snapshot_channel: Mutex::new(grpc_service_result.snapshot_tx),
             snapshot_channel_closed: AtomicBool::new(false),
             filter_limits,
@@ -246,6 +267,10 @@ impl GeyserPlugin for Plugin {
                 "waiting up to {:?} for plugin tasks to shut down",
                 SHUTDOWN_TIMEOUT
             );
+            if let Some(grpc_runtime) = inner.grpc_runtime {
+                grpc_runtime.shutdown_timeout(SHUTDOWN_TIMEOUT);
+                log::info!("gRPC delivery runtime shut down in {:?}", now.elapsed());
+            }
             inner.runtime.shutdown_timeout(SHUTDOWN_TIMEOUT);
             log::info!("tokio runtime shut down in {:?}", now.elapsed());
             log::info!("plugin shutdown complete");
@@ -685,6 +710,54 @@ impl GeyserPlugin for Plugin {
             Ok(())
         })
     }
+}
+
+/// Builds the dedicated delivery runtime described by [`ConfigGrpcRuntime`].
+fn build_grpc_runtime(config: &ConfigGrpcRuntime) -> PluginResult<Runtime> {
+    if config.worker_threads == 0 {
+        return Err(GeyserPluginError::Custom(
+            "grpc_runtime.worker_threads must be at least 1".into(),
+        ));
+    }
+    let mut builder = Builder::new_multi_thread();
+    builder.worker_threads(config.worker_threads);
+    let prefix = config.thread_name.clone();
+    let next_id = Arc::new(AtomicUsize::new(0));
+    builder.thread_name_fn(move || {
+        format!("{prefix}{}", next_id.fetch_add(1, Ordering::Relaxed))
+    });
+    if let Some(cpus) = config.affinity.clone() {
+        builder.on_thread_start(move || {
+            if let Err(error) = crate::util::cpu_core_affinity::set_thread_affinity(&cpus) {
+                log::error!("grpc_runtime: failed to set thread affinity to {cpus:?}: {error}");
+            }
+        });
+    }
+    let runtime = builder
+        .enable_all()
+        .build()
+        .map_err(|error| GeyserPluginError::Custom(Box::new(error)))?;
+    if config.busy_poll {
+        // One always-ready task per worker: a worker whose only other work is this task
+        // never parks, so it checks for newly woken tasks (and polls the I/O driver) every
+        // iteration instead of sleeping on a futex. Idle workers steal a spinner from a
+        // worker that holds two, so they spread one per worker. Runtime shutdown drops them.
+        for _ in 0..config.worker_threads {
+            runtime.spawn(async {
+                loop {
+                    tokio::task::yield_now().await;
+                }
+            });
+        }
+    }
+    log::info!(
+        "grpc_runtime: {} worker(s) named {}N, affinity {:?}, busy_poll {}",
+        config.worker_threads,
+        config.thread_name,
+        config.affinity,
+        config.busy_poll
+    );
+    Ok(runtime)
 }
 
 #[no_mangle]

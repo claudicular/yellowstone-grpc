@@ -83,6 +83,13 @@ pub struct FilteredUpdate {
 
 impl prost::Message for FilteredUpdate {
     fn encode_raw(&self, buf: &mut impl BufMut) {
+        #[cfg(feature = "ylat-trace")]
+        if let FilteredUpdateOneof::TransactionAccounts(msg) = &self.message {
+            crate::ylat_trace::stamp_encode(
+                &msg.signature,
+                self.created_at.seconds as u64 * 1_000_000_000 + self.created_at.nanos as u64,
+            );
+        }
         for name in self.filters.iter().map(|filter| filter.as_ref()) {
             encode_key(1u32, WireType::LengthDelimited, buf);
             encode_varint(name.len() as u64, buf);

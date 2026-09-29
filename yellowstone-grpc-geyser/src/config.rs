@@ -31,6 +31,10 @@ pub struct Config {
     pub log: ConfigLog,
     #[serde(default)]
     pub tokio: ConfigTokio,
+    /// Optional dedicated runtime for the latency-critical delivery path. See
+    /// [`ConfigGrpcRuntime`]. When absent everything runs on `tokio`, as before.
+    #[serde(default)]
+    pub grpc_runtime: Option<ConfigGrpcRuntime>,
     pub grpc: ConfigGrpc,
     #[serde(default)]
     pub prometheus: Option<ConfigPrometheus>,
@@ -95,6 +99,47 @@ impl ConfigTokio {
             Some(taskset) => parse_taskset(taskset).map(Some).map_err(de::Error::custom),
             None => Ok(None),
         }
+    }
+}
+
+/// Dedicated runtime for the delivery path: the geyser loop (plugin queue -> subscriber
+/// broadcast) and the gRPC server (connections, per-client filter loops, HTTP/2 encoding).
+///
+/// Block reconstruction, block-meta storage, contact info, and Prometheus stay on the
+/// general `tokio` runtime, so their bursts (block freeze, confirmed/finalized fan-out) cannot
+/// hold up processed-commitment delivery. The delivery work itself is small (a few percent of
+/// one core on mainnet); what costs latency is waiting for a worker thread to be scheduled on
+/// busy validator cores, so this runtime is meant to have few workers on CPUs of its own.
+///
+/// Worker (and blocking-pool) threads are named `{thread_name}{index}`; keep the prefix
+/// distinct so an external pinning service can place these threads. `affinity` pins them from
+/// inside the plugin instead.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigGrpcRuntime {
+    /// Number of worker threads (default 1).
+    #[serde(default = "ConfigGrpcRuntime::default_worker_threads")]
+    pub worker_threads: usize,
+    /// Pin every thread of this runtime to these CPUs (taskset syntax, e.g. "40" or "40-41").
+    #[serde(default, deserialize_with = "ConfigTokio::deserialize_affinity")]
+    pub affinity: Option<Vec<usize>>,
+    /// Thread name prefix (Linux truncates thread names to 15 bytes).
+    #[serde(default = "ConfigGrpcRuntime::default_thread_name")]
+    pub thread_name: String,
+    /// Keep every worker spinning instead of sleeping when idle, so a new message is
+    /// picked up within about a microsecond instead of after a futex wake-up. Each worker
+    /// then uses 100% of its CPU: only enable this on CPUs dedicated to this runtime.
+    #[serde(default)]
+    pub busy_poll: bool,
+}
+
+impl ConfigGrpcRuntime {
+    const fn default_worker_threads() -> usize {
+        1
+    }
+
+    fn default_thread_name() -> String {
+        "solGeyserGrpcX".to_owned()
     }
 }
 
