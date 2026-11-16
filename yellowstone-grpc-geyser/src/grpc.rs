@@ -1573,7 +1573,9 @@ impl GrpcService {
     ) where
         St: BatchStream<Item = Message> + Unpin + Send + 'static,
     {
-        const MESSAGE_BATCH_SIZE: usize = 1024;
+        // Fork latency tuning: cap the per-iteration batch at 4 (upstream default 1024), so a
+        // small cap flushes to subscribers sooner under backlog. Carried across rebases.
+        const MESSAGE_BATCH_SIZE: usize = 4;
         // let mut message_batch = Vec::with_capacity(MESSAGE_BATCH_SIZE);
         // BlockMeta, BlockFooter and the Processed/Confirmed/Finalized slot statuses close the
         // batch and go to block reconstruction only, which emits them once the block seals.
@@ -3182,12 +3184,14 @@ fn asks_for_nothing(request: &SubscribeRequest) -> bool {
         blocks_meta,
         entry,
         block_footer,
+        transaction_accounts,
         from_slot,
         commitment: _,
         accounts_data_slice: _,
         ping: _,
     } = request;
-    accounts.is_empty()
+    transaction_accounts.is_empty()
+        && accounts.is_empty()
         && slots.is_empty()
         && transactions.is_empty()
         && transactions_status.is_empty()

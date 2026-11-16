@@ -84,8 +84,7 @@ dependencies = [
 [[package]]
 name = "agave-geyser-plugin-interface"
 version = "5.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71a938d2ff613006f35792369d7a85e8a2905b19d5c69e50814c4472d8269e24"
+source = "git+https://github.com/claudicular/agave?branch=prod%2Fv4.4.1#588c60b6df7af815bfe7bc01da515be0e90987d9"
 dependencies = [
  "log",
  "solana-bls-signatures",
@@ -6362,6 +6361,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tikv-jemalloc-sys"
+version = "0.6.1+5.3.0-1-ge13ca993e8ccb9ba9847cc330696e02839f328f7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd8aa5b2ab86a2cefa406d889139c162cbb230092f7d1d7cbc1716405d852a3b"
+dependencies = [
+ "cc",
+ "libc",
+]
+
+[[package]]
+name = "tikv-jemallocator"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0359b4327f954e0567e69fb191cf1436617748813819c94b8cd4a431422d053a"
+dependencies = [
+ "libc",
+ "tikv-jemalloc-sys",
+]
+
+[[package]]
 name = "time"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7389,6 +7408,7 @@ dependencies = [
  "env_logger",
  "futures",
  "hex",
+ "hyper-util",
  "indicatif",
  "log",
  "maplit",
@@ -7399,6 +7419,7 @@ dependencies = [
  "solana-transaction-status",
  "tokio",
  "tonic",
+ "tower",
  "yellowstone-grpc-client",
  "yellowstone-grpc-geyser",
  "yellowstone-grpc-proto",
@@ -7443,6 +7464,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "lazy_static",
+ "libloading",
  "log",
  "moka",
  "notify",
@@ -7476,6 +7498,7 @@ dependencies = [
  "solana-transaction-status",
  "spl-token-2022-interface 2.1.0",
  "thiserror 2.0.21",
+ "tikv-jemallocator",
  "tokio",
  "tokio-rustls",
  "tokio-stream",

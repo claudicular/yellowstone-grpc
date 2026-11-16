@@ -102,7 +102,8 @@ vergen = "9.0.6"
 wincode = "0.6.1"
 notify = "8.2.0"
 
-# Agave SDK (crates moved out of the monorepo)
+# Agave SDK (crates moved out of the monorepo). The plugin interface is patched to the
+# claudicular/agave fork (transaction_accounts callback), see [patch.crates-io].
 agave-geyser-plugin-interface = "5.0.0"
 
 # Agave Monorepo
@@ -155,3 +156,13 @@ collapsible_match = "allow"
 [profile.release]
 lto = true
 codegen-units = 1
+
+# The claudicular/agave production fork's vendored plugin interface (crates.io 5.0.0 plus the
+# `notify_transaction_accounts` callback for transaction-grouped account notifications).
+# Source: https://github.com/claudicular/agave/tree/prod/v4.4.1 (geyser-plugin-interface/).
+# Since agave 4.4 the interface mirrors the transaction-status and block-footer types, so it
+# is the only crate both sides must share; the other agave crates come from crates.io 4.4.1.
+# Build the plugin with the validator's toolchain (rust-toolchain.toml, 1.98.1) and bump the
+# locked rev in Cargo.lock when the fork's interface changes.
+[patch.crates-io]
+agave-geyser-plugin-interface = { git = "https://github.com/claudicular/agave", branch = "prod/v4.4.1" }

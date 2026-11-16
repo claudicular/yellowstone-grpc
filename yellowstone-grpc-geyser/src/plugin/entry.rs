@@ -8,10 +8,11 @@ use {
         plugin::{
             filter::limits::FilterLimits,
             message::{
-                CommitmentLevel, ContactInfoMessage, Message, MessageAccount, MessageBlockFooter,
-                MessageBlockMeta, MessageContactInfo, MessageContactInfoRemoved,
-                MessageDeshredTransaction, MessageDeshredUpdateParent, MessageEntry,
-                MessageEntryUpdateParent, MessageSlot, MessageTransaction,
+                CommitmentLevel, ContactInfoMessage, Message, MessageAccount, MessageAccountInfo,
+                MessageBlockFooter, MessageBlockMeta, MessageContactInfo,
+                MessageContactInfoRemoved, MessageDeshredTransaction, MessageDeshredUpdateParent,
+                MessageEntry, MessageEntryUpdateParent, MessageSlot, MessageTransaction,
+                MessageTransactionAccounts,
             },
         },
         stream::tokio::BatchStreamUnboundedReceiver,
@@ -22,7 +23,8 @@ use {
         ReplicaBlockFooterInfoVersions, ReplicaBlockInfoVersions, ReplicaContactInfoVersions,
         ReplicaDeshredTransactionInfoVersions, ReplicaDeshredUpdateParentInfoVersions,
         ReplicaEntryInfoVersions, ReplicaEntryUpdateParentInfoVersions,
-        ReplicaTransactionInfoVersions, Result as PluginResult, SlotStatus,
+        ReplicaTransactionAccountsInfoVersions, ReplicaTransactionInfoVersions,
+        Result as PluginResult, SlotStatus,
     },
     solana_clock::{BankId, Slot},
     solana_pubkey::Pubkey,
@@ -671,6 +673,48 @@ impl GeyserPlugin for Plugin {
 
     fn block_footer_notifications_enabled(&self) -> bool {
         true
+    }
+
+    fn transaction_accounts_notifications_enabled(&self) -> bool {
+        true
+    }
+
+    fn transaction_accounts_include_readonly_owners(&self) -> &[Pubkey] {
+        static READONLY_OWNERS: [Pubkey; 2] = [
+            // Token Program
+            solana_pubkey::pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+            // Token 2022 Program
+            solana_pubkey::pubkey!("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+        ];
+        &READONLY_OWNERS
+    }
+
+    fn notify_transaction_accounts(
+        &self,
+        transaction_accounts: ReplicaTransactionAccountsInfoVersions,
+        bank_id: BankId,
+    ) -> PluginResult<()> {
+        self.with_inner(|inner| {
+            let ReplicaTransactionAccountsInfoVersions::V0_0_1(info) = transaction_accounts;
+
+            // Convert accounts to MessageAccountInfo
+            let accounts: Vec<Arc<MessageAccountInfo>> = info
+                .accounts
+                .iter()
+                .map(|account| Arc::new(MessageAccountInfo::from_geyser(account)))
+                .collect();
+
+            let message = Message::TransactionAccounts(Arc::new(MessageTransactionAccounts::new(
+                *info.signature,
+                info.slot,
+                info.index as u64,
+                accounts,
+                bank_id,
+            )));
+            inner.send_message(message);
+
+            Ok(())
+        })
     }
 }
 

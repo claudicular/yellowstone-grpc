@@ -269,6 +269,9 @@ impl GeyserEventAdapter for E2EGeyserEventAdapter {
             // A block repeats content the block machine rebuilds itself, and an UpdateParent
             // has no counterpart in its abstraction.
             UpdateOneof::Block(_) | UpdateOneof::EntryUpdateParent(_) => None,
+            // Fork-only event: transaction-grouped account updates play no part in
+            // block reconstruction, so they are not tracked by the block machine.
+            UpdateOneof::TransactionAccounts(_) => None,
             UpdateOneof::Ping(_) | UpdateOneof::Pong(_) => None,
         }
     }

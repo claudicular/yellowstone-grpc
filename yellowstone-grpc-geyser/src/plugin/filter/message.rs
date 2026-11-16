@@ -39,8 +39,8 @@ use {
         subscribe_update::UpdateOneof, SlotStatus as SlotStatusProto, SubscribeUpdate,
         SubscribeUpdateAccount, SubscribeUpdateAccountInfo, SubscribeUpdateBlock,
         SubscribeUpdateEntry, SubscribeUpdatePing, SubscribeUpdatePong, SubscribeUpdateSlot,
-        SubscribeUpdateTransaction, SubscribeUpdateTransactionInfo,
-        SubscribeUpdateTransactionStatus,
+        SubscribeUpdateTransaction, SubscribeUpdateTransactionAccounts,
+        SubscribeUpdateTransactionInfo, SubscribeUpdateTransactionStatus,
     },
 };
 
@@ -157,6 +157,20 @@ impl WeightScales {
                     });
                 return self.transaction.max(1).saturating_mul(units);
             }
+            // Fork: weighs like the accounts it carries (a full account each, as above).
+            FilteredUpdateOneof::TransactionAccounts(update) => {
+                let units = update.accounts.iter().fold(0u32, |units, account| {
+                    let extra = account
+                        .data
+                        .len()
+                        .checked_div(self.account_data_unit)
+                        .unwrap_or_default();
+                    units.saturating_add(
+                        u32::try_from(extra).unwrap_or(u32::MAX).saturating_add(1),
+                    )
+                });
+                return self.account.max(1).saturating_mul(units.max(1));
+            }
             FilteredUpdateOneof::Entry(_) | FilteredUpdateOneof::EntryUpdateParent(_) => self.entry,
             FilteredUpdateOneof::Slot(_) => self.slot,
             FilteredUpdateOneof::BlockFooter(_) => self.block_footer,
@@ -251,7 +265,13 @@ impl FilteredUpdate {
         message: &MessageAccount,
         data_slice: &FilterAccountsDataSlice,
     ) -> SubscribeUpdateAccountInfo {
-        let acc = &message.account;
+        Self::as_subscribe_update_account_info(&message.account, data_slice)
+    }
+
+    fn as_subscribe_update_account_info(
+        acc: &MessageAccountInfo,
+        data_slice: &FilterAccountsDataSlice,
+    ) -> SubscribeUpdateAccountInfo {
         let data_slice = data_slice.get_slice(acc.data.iter().as_slice());
         SubscribeUpdateAccountInfo {
             pubkey: acc.pubkey.as_ref().into(),
@@ -368,6 +388,24 @@ impl FilteredUpdate {
             FilteredUpdateOneof::BlockFooter(msg) => {
                 UpdateOneof::BlockFooter(msg.block_footer.clone())
             }
+            FilteredUpdateOneof::TransactionAccounts(msg) => {
+                UpdateOneof::TransactionAccounts(SubscribeUpdateTransactionAccounts {
+                    signature: msg.signature.as_ref().into(),
+                    slot: msg.slot,
+                    index: msg.index,
+                    accounts: msg
+                        .accounts
+                        .iter()
+                        .map(|acc| {
+                            Self::as_subscribe_update_account_info(
+                                acc.as_ref(),
+                                &msg.accounts_data_slice,
+                            )
+                        })
+                        .collect(),
+                    bank_id: msg.bank_id,
+                })
+            }
         };
 
         SubscribeUpdate {
@@ -386,17 +424,18 @@ pub type FilteredUpdateFilters = SmallVec<[FilterName; 4]>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FilteredUpdateOneof {
-    Account(FilteredUpdateAccount),                     // 2
-    Slot(FilteredUpdateSlot),                           // 3
-    Transaction(FilteredUpdateTransaction),             // 4
-    TransactionStatus(FilteredUpdateTransactionStatus), // 10
-    Block(Box<FilteredUpdateBlock>),                    // 5
-    Ping,                                               // 6
-    Pong(SubscribeUpdatePong),                          // 9
-    BlockMeta(Arc<MessageBlockMeta>),                   // 7
-    Entry(FilteredUpdateEntry),                         // 8
-    EntryUpdateParent(Arc<MessageEntryUpdateParent>),   // 13
-    BlockFooter(Arc<MessageBlockFooter>),               // 12
+    Account(FilteredUpdateAccount),                         // 2
+    Slot(FilteredUpdateSlot),                               // 3
+    Transaction(FilteredUpdateTransaction),                 // 4
+    TransactionStatus(FilteredUpdateTransactionStatus),     // 10
+    Block(Box<FilteredUpdateBlock>),                        // 5
+    Ping,                                                   // 6
+    Pong(SubscribeUpdatePong),                              // 9
+    BlockMeta(Arc<MessageBlockMeta>),                       // 7
+    Entry(FilteredUpdateEntry),                             // 8
+    EntryUpdateParent(Arc<MessageEntryUpdateParent>),       // 13
+    BlockFooter(Arc<MessageBlockFooter>),                   // 12
+    TransactionAccounts(FilteredUpdateTransactionAccounts), // 100
 }
 
 impl FilteredUpdateOneof {
@@ -451,6 +490,10 @@ impl FilteredUpdateOneof {
     pub const fn block_footer(message: Arc<MessageBlockFooter>) -> Self {
         Self::BlockFooter(message)
     }
+
+    pub const fn transaction_accounts(message: FilteredUpdateTransactionAccounts) -> Self {
+        Self::TransactionAccounts(message)
+    }
 }
 
 impl prost::Message for FilteredUpdateOneof {
@@ -470,6 +513,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::BlockMeta(msg) => message::encode(7u32, &msg.block_meta, buf),
             Self::Entry(msg) => message::encode(8u32, msg, buf),
             Self::BlockFooter(msg) => message::encode(12u32, &msg.block_footer, buf),
+            Self::TransactionAccounts(msg) => message::encode(100u32, msg, buf),
         }
     }
 
@@ -486,6 +530,7 @@ impl prost::Message for FilteredUpdateOneof {
             Self::BlockMeta(msg) => message::encoded_len(7u32, &msg.block_meta),
             Self::Entry(msg) => message::encoded_len(8u32, msg),
             Self::BlockFooter(msg) => message::encoded_len(12u32, &msg.block_footer),
+            Self::TransactionAccounts(msg) => message::encoded_len(100u32, msg),
         }
     }
 
@@ -1394,6 +1439,78 @@ impl FilteredUpdateEntry {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct FilteredUpdateTransactionAccounts {
+    pub signature: Signature,
+    pub slot: u64,
+    pub index: u64,
+    pub accounts: Vec<Arc<MessageAccountInfo>>,
+    pub accounts_data_slice: FilterAccountsDataSlice,
+    pub bank_id: u64,
+}
+
+impl prost::Message for FilteredUpdateTransactionAccounts {
+    fn encode_raw(&self, buf: &mut impl BufMut) {
+        prost_bytes_encode_raw(1u32, self.signature.as_ref(), buf);
+        if self.slot != 0u64 {
+            ::prost::encoding::uint64::encode(2u32, &self.slot, buf);
+        }
+        if self.index != 0u64 {
+            ::prost::encoding::uint64::encode(3u32, &self.index, buf);
+        }
+        for account in &self.accounts {
+            FilteredUpdateAccount::account_encode_raw(
+                4u32,
+                account.as_ref(),
+                &self.accounts_data_slice,
+                buf,
+            );
+        }
+        if self.bank_id != 0u64 {
+            ::prost::encoding::uint64::encode(5u32, &self.bank_id, buf);
+        }
+    }
+
+    fn encoded_len(&self) -> usize {
+        prost_bytes_encoded_len(1u32, self.signature.as_ref())
+            + if self.slot != 0u64 {
+                ::prost::encoding::uint64::encoded_len(2u32, &self.slot)
+            } else {
+                0
+            }
+            + if self.index != 0u64 {
+                ::prost::encoding::uint64::encoded_len(3u32, &self.index)
+            } else {
+                0
+            }
+            + prost_repeated_encoded_len_map!(4u32, self.accounts, |account| {
+                FilteredUpdateAccount::account_encoded_len(
+                    account.as_ref(),
+                    &self.accounts_data_slice,
+                )
+            })
+            + if self.bank_id != 0u64 {
+                ::prost::encoding::uint64::encoded_len(5u32, &self.bank_id)
+            } else {
+                0
+            }
+    }
+
+    fn merge_field(
+        &mut self,
+        _tag: u32,
+        _wire_type: WireType,
+        _buf: &mut impl Buf,
+        _ctx: DecodeContext,
+    ) -> Result<(), DecodeError> {
+        unimplemented!()
+    }
+
+    fn clear(&mut self) {
+        unimplemented!()
+    }
+}
+
 #[cfg(any(test, feature = "bench"))]
 pub mod tests {
     #[cfg(test)]
@@ -2101,6 +2218,36 @@ pub mod tests {
     fn test_message_entry() {
         for entry in create_entries() {
             encode_decode_cmp(&["123"], FilteredUpdateOneof::entry(entry));
+        }
+    }
+
+    #[test]
+    fn test_message_transaction_accounts() {
+        // Fork-only oneof field (100): checks the hand-rolled encoder against prost,
+        // including the zero-valued (skipped) slot/index/bank_id edges.
+        let accounts = create_accounts_raw()
+            .into_iter()
+            .map(Arc::new)
+            .collect::<Vec<_>>();
+        let signature = Signature::from([7u8; 64]);
+        for accounts in std::iter::once(&accounts[..0]).chain(accounts.chunks(16)) {
+            for accounts_data_slice in create_account_data_slice() {
+                for (slot, index, bank_id) in [(0, 0, 0), (42, 7, 43)] {
+                    encode_decode_cmp(
+                        &["123"],
+                        FilteredUpdateOneof::transaction_accounts(
+                            super::FilteredUpdateTransactionAccounts {
+                                signature,
+                                slot,
+                                index,
+                                accounts: accounts.to_vec(),
+                                accounts_data_slice: accounts_data_slice.clone(),
+                                bank_id,
+                            },
+                        ),
+                    );
+                }
+            }
         }
     }
 }

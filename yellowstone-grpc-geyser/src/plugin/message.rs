@@ -590,6 +590,35 @@ impl MessageBlockMeta {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct MessageTransactionAccounts {
+    pub signature: Signature,
+    pub slot: Slot,
+    pub index: u64,
+    pub accounts: Vec<Arc<MessageAccountInfo>>,
+    pub bank_id: BankId,
+    pub created_at: Timestamp,
+}
+
+impl MessageTransactionAccounts {
+    pub fn new(
+        signature: Signature,
+        slot: Slot,
+        index: u64,
+        accounts: Vec<Arc<MessageAccountInfo>>,
+        bank_id: BankId,
+    ) -> Self {
+        Self {
+            signature,
+            slot,
+            index,
+            accounts,
+            bank_id,
+            created_at: Timestamp::from(SystemTime::now()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MessageBlock {
     pub meta: Arc<MessageBlockMeta>,
     pub transactions: Vec<Arc<MessageTransaction>>,
@@ -747,6 +776,7 @@ pub enum Message {
     BlockFooter(Arc<MessageBlockFooter>),
     BlockMeta(Arc<MessageBlockMeta>),
     Block(Arc<MessageBlock>),
+    TransactionAccounts(Arc<MessageTransactionAccounts>),
 }
 
 impl Message {
@@ -763,6 +793,7 @@ impl Message {
             Self::BlockFooter(msg) => msg.slot,
             Self::BlockMeta(msg) => msg.slot,
             Self::Block(msg) => msg.meta.slot,
+            Self::TransactionAccounts(msg) => msg.slot,
         }
     }
 }

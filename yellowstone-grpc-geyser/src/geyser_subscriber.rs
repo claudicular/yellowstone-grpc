@@ -629,6 +629,7 @@ fn bank_of(message: &Message) -> Option<BankId> {
         Message::BlockFooter(footer) => Some(footer.bank_id),
         Message::BlockMeta(block_meta) => Some(block_meta.bank_id),
         Message::Block(block) => Some(block.meta.bank_id),
+        Message::TransactionAccounts(transaction_accounts) => Some(transaction_accounts.bank_id),
         Message::Slot(_)
         | Message::DeshredUpdateParent(_)
         | Message::EntryUpdateParent(_)
