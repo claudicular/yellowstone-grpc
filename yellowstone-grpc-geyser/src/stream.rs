@@ -184,8 +184,14 @@ pub mod tokio {
                         unreachable!("Buffer should have remaining space");
                     }
                     let mut i = 1;
+                    // Drain with `poll_recv`, not `try_recv`: when a sender has claimed the
+                    // next slot but not finished writing it, `try_recv` parks the whole worker
+                    // thread until that sender runs again. Senders are validator threads on
+                    // busy cores, so a preempted sender stalled delivery for milliseconds.
+                    // `poll_recv` returns `Pending` instead (the sender wakes us when done);
+                    // order is unchanged since nothing past an unfinished slot is read.
                     'drain: while buffer.ready() {
-                        let Ok(item) = this.inner.try_recv() else {
+                        let Poll::Ready(Some(item)) = this.inner.poll_recv(cx) else {
                             break 'drain;
                         };
                         if buffer.accumulate(item).is_err() {
@@ -224,8 +230,14 @@ pub mod tokio {
                         unreachable!("Buffer should have remaining space");
                     }
                     let mut i = 1;
+                    // Drain with `poll_recv`, not `try_recv`: when a sender has claimed the
+                    // next slot but not finished writing it, `try_recv` parks the whole worker
+                    // thread until that sender runs again. Senders are validator threads on
+                    // busy cores, so a preempted sender stalled delivery for milliseconds.
+                    // `poll_recv` returns `Pending` instead (the sender wakes us when done);
+                    // order is unchanged since nothing past an unfinished slot is read.
                     'drain: while buffer.ready() {
-                        let Ok(item) = this.inner.try_recv() else {
+                        let Poll::Ready(Some(item)) = this.inner.poll_recv(cx) else {
                             break 'drain;
                         };
                         if buffer.accumulate(item).is_err() {

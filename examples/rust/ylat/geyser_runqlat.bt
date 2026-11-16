@@ -1,0 +1,20 @@
+// Run-queue latency of Yellowstone's tokio workers (solGeyserGrpc*):
+//  wake_lat: sched_wakeup -> switch-in ; preempt_wait: involuntary switch-out -> switch-in
+tracepoint:sched:sched_wakeup
+/ strncmp(args->comm, "solGeyserGrpc", 13) == 0 /
+{ @w[args->pid] = nsecs; @wakes = count(); }
+
+tracepoint:sched:sched_switch
+/ strncmp(args->prev_comm, "solGeyserGrpc", 13) == 0 && args->prev_state == 0 /
+{ @p[args->prev_pid] = nsecs; @preempts = count(); }
+
+tracepoint:sched:sched_switch
+/ strncmp(args->next_comm, "solGeyserGrpc", 13) == 0 && @w[args->next_pid] != 0 /
+{ @wake_lat_us = hist((nsecs - @w[args->next_pid]) / 1000); delete(@w[args->next_pid]); }
+
+tracepoint:sched:sched_switch
+/ strncmp(args->next_comm, "solGeyserGrpc", 13) == 0 && @p[args->next_pid] != 0 /
+{ @preempt_wait_us = hist((nsecs - @p[args->next_pid]) / 1000); delete(@p[args->next_pid]); }
+
+interval:s:15 { exit(); }
+END { clear(@w); clear(@p); }
