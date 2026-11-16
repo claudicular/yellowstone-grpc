@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Hard rule: build only on the validator host
+
+Never compile this workspace on a laptop or other dev machine: no `cargo build`, `test`,
+`check`, `clippy` or `run`, not even for a quick type check. Its `target/` grows to several
+GB (2.3 GB were found on the laptop on 2026-11-17). Git work and reading code are fine. Push
+the branch, then build and test on FRA in `/home/sol/yellowstone-grpc` under
+`taskset -c 30,32-35 nice -n 19`, which keeps the build off the fast lane's cores. The steps
+are in claudicular/agave `docs/fork/PROD_VALIDATOR.md`.
+
 ## Scope: non-leader RPC nodes only
 
 The geyser plugin is meant to run only on RPC nodes that don't take part in consensus:
@@ -224,3 +233,78 @@ that already reached the commitment, and a deep one reaches past the server's re
   block-footer` skips them.
 - `--tags` and `--exclude-tags` take comma-separated lists, and can be repeated:
   `yellowstone-e2e all --exclude-tags block-footer,gossip`.
+
+# claudicular fork additions
+
+This fork's production branch is `prod/geyser-v17.0.1-agave-4.4.1` (upstream `geyser-v17.0.1` +
+three fork commits), built against claudicular/agave `prod/v4.4.1`. Deployment and upgrade
+procedure: claudicular/agave `docs/fork/PROD_VALIDATOR.md`. Build only on the validator host
+(see the hard rule at the top).
+
+## Transaction-grouped account notifications (`transaction_accounts`)
+
+This fork adds a `transaction_accounts` subscription: all accounts modified by a single
+transaction delivered in one grouped `SubscribeUpdateTransactionAccounts` message
+(filterable by owner/account, with `include_all_accounts` and `readonly_mints_only` options).
+
+**This feature requires a forked validator.** It is fed by a custom Geyser callback
+(`notify_transaction_accounts`) that does not exist in upstream agave. The workspace
+`Cargo.toml` `[patch.crates-io]` points `agave-geyser-plugin-interface` (the only crate the
+plugin and validator must share since agave 4.4) at the fork's vendored copy
+(`github.com/claudicular/agave`, branch `prod/v<agave version>`). When moving to a new release,
+rebase the agave fork first, then this repo onto the matching yellowstone tag, then bump the
+locked rev in `Cargo.lock`.
+
+**Running it:**
+
+```bash
+# Validator must be built from the forked agave and launched with the gating flag
+# (off by default for compatibility):
+agave-validator \
+    --geyser-plugin-config yellowstone-grpc-geyser/config.json \
+    --enable-transaction-accounts-notify
+
+# Subscribe (Rust example):
+cargo run --bin subscribe-transaction-accounts -- \
+    --endpoint http://127.0.0.1:10000 \
+    --program 675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8
+```
+
+The plugin opts in via `GeyserPlugin::transaction_accounts_notifications_enabled() == true`;
+the validator only emits the data when launched with `--enable-transaction-accounts-notify`.
+
+**Wire numbering:** the fork-only fields use tag `100` (`SubscribeRequest.transaction_accounts`
+and the `SubscribeUpdate.transaction_accounts` oneof arm), far above upstream's range. They
+were `12` until v16, when upstream took `12` for `block_footer`; clients built from older
+fork protos must regenerate. The hand-rolled encoder in `plugin/filter/message.rs` hardcodes
+the tag, so keep it in sync with the proto.
+
+**`bank_id` (since agave 4.3.0):** each update carries the bank that committed the transaction.
+Under Alpenglow an `UpdateParent` can clear a bank and replace it within the same slot, so
+consumers should drop updates whose `bank_id` matches an `entry_update_parent.cleared_bank_id`
+(sent to `entry` filters with `include_update_parent: true`).
+
+## Dedicated delivery runtime (`grpc_runtime`, fork-only)
+
+Optional top-level config section. When present, the geyser loop (plugin queue -> processed
+broadcast) and the whole gRPC server (listeners, connections, per-client filter loops, HTTP/2
+encoding) run on a separate tokio runtime; block reconstruction, contact info, block-meta
+storage and Prometheus stay on `tokio`. Without it nothing changes.
+
+```json
+"grpc_runtime": { "worker_threads": 1, "busy_poll": true, "affinity": "46", "thread_name": "solGeyserGrpcX" }
+```
+
+- Why: delivery needs a few percent of one core, but on a validator the 48-worker general
+  runtime shares busy cores, so each hop (callback -> geyser loop -> client loop -> HTTP/2
+  task) can wait 0.1-4 ms for a CPU. On FRA this made `created_at` -> socket write
+  p50 0.06 / p90 0.9 / p99 2.2 ms.
+- `busy_poll` keeps each worker spinning (100% of its CPU) so a queued message is picked up in
+  about a microsecond; use it only on CPUs dedicated to this runtime.
+- Threads are named `{thread_name}{N}` (`solGeyserGrpcX0`); an external pinning service that
+  re-pins all validator threads must skip or place this prefix, or `affinity` is overridden.
+- `examples/rust/tests/delivery_runtime_equivalence.rs` checks that subscriber streams are
+  identical with and without it. Latency tooling: `ylat-harness` (replays a recorded mainnet
+  trace through the plugin callbacks, in-process or via dlopen, including a `plugin reload`),
+  `ylat-probe` (minimal pinned client), and `examples/rust/ylat/` (pcap and stage splits).
+
